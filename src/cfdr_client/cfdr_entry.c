@@ -58,14 +58,6 @@ fn_internal void init_frame(PL_Render_Context *render_context) {
   cfdr_ui_init(&CFDR_UI, &State);
 }
 
-fn_internal V2F place_point(UG_Mesh *mesh, F32 largest_axis, F32 scale, V2F offset, V2F p) {
-  p = v2f_sub(p, mesh->bounds.min);
-  p = v2f_div(p, largest_axis);
-  p = v2f_mul(scale, p);
-  p = v2f_add(p, offset);
-  return p;
-}
-
 fn_internal void next_frame(B32 first_frame, PL_Render_Context *render_context) {
   If_Unlikely(first_frame) {
     init_frame(render_context);

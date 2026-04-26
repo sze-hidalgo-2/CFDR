@@ -66,6 +66,10 @@ fn fs_main(@location(0) X : vec3<f32>,
            @location(1) C : vec4<f32>,
            @location(2) U : vec2<f32> ) -> @location(0) vec4<f32> {
 
+  // if (any(X < World_3D.Volume_Min) || any(X > World_3D.Volume_Max)) {
+    // discard;
+  // }
+
   let sample_position = clamp((X - World_3D.Volume_Min) / (World_3D.Volume_Max - World_3D.Volume_Min), vec3<f32>(0.0), vec3<f32>(1.0));
   // let p  = vec3<f32>(p2.z, 1.0 - p2.x, p2.y);
 

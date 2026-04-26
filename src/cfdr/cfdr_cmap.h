@@ -215,19 +215,19 @@ fn_internal void cfdr_cmap_table_init(CFDR_CMap_Table *cm) {
   cm->bucket_array = arena_push_count(&cm->arena, CFDR_CMap_List, cm->bucket_count);
 
   // NOTE(cmat): Create default color-maps.
-  cfdr_cmap_init(&cm->fallback, CFDR_CMap_Interpolate_HSV, CFDR_CMap_Opacity_Solid, v4f(0, 1.f, 1.f, 1.f), v4f(1.f, 1.f, 1.f, 1.f));
+  cfdr_cmap_init(&cm->fallback, CFDR_CMap_Interpolate_HSV, CFDR_CMap_Opacity_Solid, v4f(0.7f, 1.f, 1.f, 1.f), v4f(0.0f, 1.f, 1.f, 1.f));
 
   {
     CFDR_CMap *cmap = cfdr_cmap_table_push(cm, str_lit("Rainbow"));
     if (cmap) {
-      cfdr_cmap_init(cmap, CFDR_CMap_Interpolate_HSV, CFDR_CMap_Opacity_Solid, v4f(0, 1.f, 1.f, 1.f), v4f(1.f, .8f, 1.f, 1.f));
+      cfdr_cmap_init(cmap, CFDR_CMap_Interpolate_HSV, CFDR_CMap_Opacity_Solid, v4f(0.7f, 1.f, 1.f, 1.f), v4f(0.0f, 1.f, 1.f, 1.f));
     }
   }
 
   {
     CFDR_CMap *cmap = cfdr_cmap_table_push(cm, str_lit("Rainbow-Pastel"));
     if (cmap) {
-      cfdr_cmap_init(cmap, CFDR_CMap_Interpolate_HSV, CFDR_CMap_Opacity_Solid, v4f(0, .6f, 1.f, 1.f), v4f(1.f, .8f, 1.f, 1.f));
+      cfdr_cmap_init(cmap, CFDR_CMap_Interpolate_HSV, CFDR_CMap_Opacity_Solid, v4f(0.7f, .6f, 1.f, 1.f), v4f(0.0f, 0.8f, 1.f, 1.f));
     }
   }
 

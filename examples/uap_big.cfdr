@@ -1,0 +1,111 @@
+// NOTE(cmat): Specify CFDR version
+#version 100
+
+// NOTE(cmat): Project title.
+#project "UAP"
+
+// NOTE(cmat): Custom windfield colormap
+#colormap "Windfield" {
+  color_0:              @hsv [ 252, 60, 100 ],
+  color_1:              @hsv [ 0,   80, 100 ],
+  opacity_map:          "solid",
+  color_map:            "hsv",
+  data_map:             "custom",
+  data_range:           [ 0, 5 ],
+}
+
+// NOTE(cmat): Setup viewport.
+#viewport {
+  background:       @hsv [ 255, 25, 40 ],
+  orthographic:     false,
+  grid_enabled:     true,
+  grid_color:       @hsv [ 0, 0, 100 ],
+  grid_level:       1,
+  colormap:         "Windfield",
+}
+
+// NOTE(cmat): We create a basic text overlay
+#overlay "Title" {
+  visible:          true,
+  content:          "Stockholm (Large) - Air Flow",
+  scale:            100,
+  color:            @hsv [94, 16, 90],
+  shadow_color:     @hsv [252, 57, 0],
+  position_x:       @align "left",
+  position_y:       @align "top",
+  border:           [15, 5],
+  background:       true,
+  shadow:           true,
+  shadow_offset:    1,
+}
+
+// NOTE(cmat): We can even create a watermark using a text overlay
+#overlay "Watermark" {
+  visible:          true,
+  content:          "HiDALGO 2",
+  scale:            70,
+  color:            @hsv [200, 31, 22],
+  opacity:          47,
+  shadow_color:     @hsv [100, 20, 0],
+  position_x:       @align "right",
+  position_y:       @align "bottom",
+  border:           [10, 0],
+  background:       false,
+  shadow:           false,
+  shadow_offset:    1,
+}
+
+// NOTE(cmat): Building geometry.
+#object "Buildings" {
+  visible:          true,
+  color:            @hsv [200, 0, 80],
+  opacity:          100,
+  material:         "matcap",
+  surface:          "examples/uap_big/buildings.stl",
+  scale:            [1, 1, 1],
+}
+
+#object "Forests" {
+  visible:          true,
+  color:            @hsv [79, 40, 60],
+  opacity:          100,
+  material:         "matcap",
+  surface:          "examples/uap_big/forests.stl",
+  scale:            [1, 1, 1],
+}
+
+#object "Ground" {
+  visible:          true,
+  color:            @hsv [360, 0, 25],
+  opacity:          100,
+  material:         "matcap",
+  surface:          "examples/uap_big/ground.stl",
+  scale:            [1, 1, 1],
+}
+
+// NOTE(cmat): Simulation volume.
+#object "Simulation" {
+  visible:          false,
+  volume:           [
+                      [ 0,  "examples/uap_big/velocity_0.vol"  ],
+                      [ 1,  "examples/uap_big/velocity_1.vol"  ],
+                      [ 2,  "examples/uap_big/velocity_2.vol"  ],
+                      [ 3,  "examples/uap_big/velocity_3.vol"  ],
+                      [ 4,  "examples/uap_big/velocity_4.vol"  ],
+                      [ 5,  "examples/uap_big/velocity_5.vol"  ],
+                    ],
+  scale:            [4232, 6004, 200],
+  translate:        [ 0, 0, 0 ],
+}
+
+// NOTE(cmat): Sample into the simulation volume.
+#object "Terrain Slice" {
+  visible:          true,
+  color:            @hsv [0, 70, 80],
+  material:         "sample",
+  surface:          "examples/uap_big/slice.stl",
+  scale:            [1, 1, 1],
+  translate:        [0, 0, 3],
+}
+
+

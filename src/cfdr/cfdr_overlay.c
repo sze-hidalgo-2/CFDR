@@ -11,6 +11,9 @@ fn_internal void cfdr_overlay_init(CFDR_Overlay *overlay) {
   overlay->count = 0;
   overlay->first = 0;
   overlay->last  = 0;
+
+  F32 font_size = 30.f * js_web_device_pixel_ratio();
+  g2_font_init(&overlay->font, &overlay->arena, Overlay_Font_Baked, font_size, v2_u16(1024, 1024), Codepoints_ASCII_Extended);
 }
 
 fn_internal CFDR_Overlay_Node *cfdr_overlay_push(CFDR_Overlay *overlay) {
@@ -34,8 +37,6 @@ fn_internal CFDR_Overlay_Node *cfdr_overlay_push(CFDR_Overlay *overlay) {
 
   return node;
 }
-
-
 
 fn_internal void cfdr_overlay_draw_text(CFDR_Overlay *overlay, CFDR_Scene *scene, CFDR_Overlay_Node *node, R2F draw_region) {
   Scratch scratch = { };
@@ -72,7 +73,7 @@ fn_internal void cfdr_overlay_draw_text(CFDR_Overlay *overlay, CFDR_Scene *scene
     switch (node->position_y) {
       case Align2_Bottom:    { text_at.y = draw_region.min.y - node->font.font.metric_descent + node->border.y;                                   } break;
       case Align2_Top:       { text_at.y = draw_region.max.y - node->font.font.metric_ascent - node->border.y;                                    } break;
-      case Align2_Center:    { text_at.y = draw_region.min.y + .5f * ((draw_region.max.y - draw_region.min.y) - overlay->font.font.metric_height);   } break;
+      case Align2_Center:    { text_at.y = draw_region.min.y + .5f * ((draw_region.max.y - draw_region.min.y) - node->font.font.metric_height);   } break;
     }
    
     node->color_shadow.a = node->color.a;
@@ -90,8 +91,52 @@ fn_internal void cfdr_overlay_draw_text(CFDR_Overlay *overlay, CFDR_Scene *scene
   }
 }
 
-fn_internal void cfdr_overlay_draw(CFDR_Overlay *overlay, CFDR_Scene *scene, R2F draw_region) {
+fn_internal void cfdr_overlay_draw_cmap(CFDR_Overlay *overlay, CFDR_CMap_Table *cmap_table, CFDR_Scene *scene, R2F draw_region) {
+  V2F tick_size = v2f(1, 10);
+
+  F32 scale = js_web_device_pixel_ratio();
+
+  R2F bar_region = r2f(draw_region.x0, draw_region.y0, draw_region.x0 + scale * 400, draw_region.y0 + scale * 40);
+  bar_region.x0 += 20.f;
+  bar_region.x1 += 20.f;
+  bar_region.y0 += 20.f + tick_size.y / 2 + overlay->font.font.metric_height;
+  bar_region.y1 += 20.f + tick_size.y / 2 + overlay->font.font.metric_height;
+
+  I32 subdiv_count  = 4;
+
+  CFDR_CMap *cmap = cfdr_cmap_table_get(cmap_table, scene->cmap);
+  g2_draw_rect(bar_region.min, r2f_size(bar_region), .mat = cmap->material);
+  
+  g2_draw_text(str_lit("Velocity m/s"), &overlay->font, v2f(bar_region.min.x - 1, bar_region.max.y - overlay->font.font.metric_descent - 1), .color = v4f(0, 0, 0, 1));
+  g2_draw_text(str_lit("Velocity m/s"), &overlay->font, v2f(bar_region.min.x, bar_region.max.y - overlay->font.font.metric_descent));
+
+  For_I32 (it, subdiv_count + 1) {
+    V2F at = v2f(bar_region.min.x + r2f_size(bar_region).x * ((F32)it / subdiv_count), bar_region.min.y - 3 * tick_size.y / 4);
+    g2_draw_rect(v2f(at.x - 1, at.y - 1), v2f(tick_size.x + 2, tick_size.y + 2), .color = v4f(0, 0, 0, 1));
+    g2_draw_rect(at, tick_size);
+  }
+
+  V2F range = v2f(0, 1);
+  if (cmap->map_mode == CFDR_CMap_Map_Custom || cmap->map_mode == CFDR_CMap_Map_Min_Max) {
+    range = cmap->map_custom;
+  }
+
+  For_I32 (it, subdiv_count + 1) {
+    V2F at = v2f(bar_region.min.x + r2f_size(bar_region).x * ((F32)it / subdiv_count), bar_region.min.y - 3 * tick_size.y / 4);
+    char buffer[512] = { };
+    stbsp_snprintf(buffer, 512, "%.1e", cmap->map_custom.x + (cmap->map_custom.y - cmap->map_custom.x) * ((F32)it / subdiv_count));
+    at = v2f(f32_floor(at.x), f32_floor(at.y));
+    g2_draw_text(str_from_cstr(buffer), &overlay->font, v2f(at.x - 1, at.y - 1.25f * overlay->font.font.metric_ascent - 1), .color = v4f(0, 0, 0, 1));
+    g2_draw_text(str_from_cstr(buffer), &overlay->font, v2f(at.x, at.y - 1.25f * overlay->font.font.metric_ascent));
+  }
+}
+
+fn_internal void cfdr_overlay_draw(CFDR_Overlay *overlay, CFDR_CMap_Table *cmap_table, CFDR_Scene *scene, R2F draw_region) {
   g2_clip_region(r2i_from_r2f(draw_region));
+
+  // TODO(cmat): Temporary.
+  cfdr_overlay_draw_cmap(overlay, cmap_table, scene, draw_region);
+
   for (CFDR_Overlay_Node *it = overlay->first; it; it = it->next) {
     if (it->visible) {
       cfdr_overlay_draw_text(overlay, scene, it, draw_region);

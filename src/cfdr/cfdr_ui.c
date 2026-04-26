@@ -90,7 +90,7 @@ fn_internal void cfdr_ui_viewport_draw_hook(UI_Response *response, R2F draw_regi
   CFDR_State    *state  = ui->state;
 
   cfdr_scene_draw(&state->render, &state->cmap_table, response, &state->scene, draw_region);
-  cfdr_overlay_draw(&state->overlay, &state->scene, draw_region);
+  cfdr_overlay_draw(&state->overlay, &state->cmap_table, &state->scene, draw_region);
 
   if (ui->profile_view) {
     g2_draw_rect(draw_region.min, r2f_size(draw_region), .color = v4f(.0f, .0f, .0f, .6f));
@@ -173,18 +173,19 @@ fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
   UI_Parent_Scope(menu_bar) {
 
     var_local_persist Str demo_names[] = {
-      str_lit("SZE - Wind Comfort"),
-      str_lit("FAU - Lattice Boltzman"),
+      str_lit("SZE - Stockholm Wind Medium"),
+      str_lit("SZE - Stockholm Wind Large"),
+      str_lit("FAU - Lattice Boltzman Large"),
     };
 
     var_local_persist Str demo_paths[] = {
       str_lit("uap.cfdr"),
+      str_lit("uap_big.cfdr"),
       str_lit("fau.cfdr"),
     };
 
-    var_local_persist Str demo_list[] = { str_lit("Urban Air Pollution"), str_lit("Karman 2D") };
     var_local_persist I32 demo_index = 0;
-    if (ui_list_fixed(str_lit("Examples"), &demo_index, sarray_len(demo_list), demo_names)) {
+    if (ui_list_fixed(str_lit("Examples"), &demo_index, sarray_len(demo_names), demo_names)) {
       U08 url_buffer[512] = { };
       js_web_current_url_base(511, url_buffer);
       Str url = str_from_cstr((char *)url_buffer);
@@ -197,7 +198,6 @@ fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
     }
 
     ui_container(str_lit("##padding"), UI_Container_None, Axis2_X, UI_Size_Fill, UI_Size_Fit);
-
 
     UI_Font_Scope(&ui->font_icon) {
 #if 0
@@ -344,6 +344,19 @@ fn_internal void cfdr_ui_viewport_menu_bar(CFDR_UI_State *ui, I32 viewport_index
 
       ui_list_fixed(str_lit("Color Map"), &colormap_index, ui->state->cmap_table.key_count, ui->state->cmap_table.key_list); 
       ui->state->scene.cmap = ui->state->cmap_table.key_list[colormap_index];
+    }
+
+    UI_Node *right = ui_container(str_lit("##right"), UI_Container_None, Axis2_X, UI_Size_Fill, UI_Size_Fit);
+    right->layout.gap_child = 2.f;
+    UI_Parent_Scope(right) {
+      ui_container(str_lit("##padding_1"), Axis2_X, UI_Container_None, UI_Size_Fill, UI_Size_Fit);
+
+      if (ui_button(str_lit("Render Image")).press) {
+        Str filename = str_lit("render.txt");;
+        Str data     = str_lit("THIS IS MY DATA");;
+        js_web_download((U32)filename.len, filename.txt, (U32)data.len, data.txt);
+        log_info("trigger");
+      }
     }
   }
 }

@@ -288,13 +288,13 @@ function js_web_load_page(url_len, url_txt) {
   window.location.href = url_string;
 }
 
-function js_web_download(filename, data_len, data_ptr) {
-  const view = new Uint8Array(wasm_context.memory.buffer, data_ptr, data_len);
-  const blob = new Blob([data], { type: "application/octet-stream" });
-  const url  = URL.createObjectURL(blob);
-
-  const downloader = document.createElement("downloader");
-  downloader.href = url;
+function js_web_download(filename_len, filename_ptr, data_len, data_ptr) {
+  const filename      = js_string_from_c_string(filename_len, filename_ptr);
+  const data          = new Uint8Array(wasm_context.memory.buffer, data_ptr, data_len);
+  const blob          = new Blob([data], { type: "application/octet-stream" });
+  const url           = URL.createObjectURL(blob);
+  const downloader    = document.createElement("a");
+  downloader.href     = url;
   downloader.download = filename;
 
   document.body.appendChild(downloader);
@@ -508,7 +508,7 @@ function js_webgpu_texture_3D_allocate(format, width, height, depth) {
     dimension: "3d",
     size:     { width, height, depthOrArrayLayers: depth },
     format:   WebGPU_Texture_Format_Lookup_Name[format],
-    usage:    GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    usage:    GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
   return wasm_context.webgpu.handle_map.store(texture);
@@ -543,7 +543,7 @@ function js_webgpu_texture_2D_allocate(format, width, height) {
   const texture = wasm_context.webgpu.device.createTexture({
     size:     [ width, height ],
     format:   WebGPU_Texture_Format_Lookup_Name[format],
-    usage:    GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+    usage:    GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
   });
 
   return wasm_context.webgpu.handle_map.store(texture);

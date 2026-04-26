@@ -97,6 +97,9 @@ fn fs_main(@location(0) X : vec3<f32>,
   let ray_target = (X - world_min) / extent;
   let ray_direction = normalize(ray_target - ray_origin);
 
+  // let ray_origin = (X - world_min) / extent;
+  // let ray_direction = normalize(-normalize(World_3D.Eye_Position) / extent);
+
 
   // let ray_origin    = World_3D.Eye_Position;
   // let ray_direction = normalize(X - ray_origin);

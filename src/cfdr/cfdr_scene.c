@@ -125,8 +125,10 @@ fn_internal void cfdr_scene_draw_volume(CFDR_Render *render, CFDR_CMap_Table *cm
       V2F vis_range = v2f(0, 1);
       if (cmap->map_mode == CFDR_CMap_Map_Min_Max) {
         vis_range = Last_Volume->data_range;
+        cmap->map_custom = Last_Volume->data_range;
       } else if (cmap->map_mode == CFDR_CMap_Map_Clamp_To_Unit) {
         vis_range = v2f(0, 1);
+        cmap->map_custom = v2f(0, 1);
       } else {
         vis_range = cmap->map_custom;
       }
