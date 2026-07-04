@@ -137,41 +137,30 @@ var_global U32 Codepoints_EU_Data[] = {
     0x00F0, 0x00F1, 0x00F2, 0x00F3, 0x00F4, 0x00F5, 0x00F6, 0x00F7,
     0x00F8, 0x00F9, 0x00FA, 0x00FB, 0x00FC, 0x00FD, 0x00FE, 0x00FF,
 
-    // NOTE(cmat): Latin Extended-A
-    0x0100, 0x017F,
+    // NOTE(cmat): Hungarian.
+    0x0170, 0x0171, 
+    0x0150, 0x0151,
 
-    // NOTE(cmat): Latin Extended-B
-    0x0180, 0x024F,
-
-    // NOTE(cmat): Latin Extended Additional
-    0x1E00, 0x1EFF,
-
-    // NOTE(cmat): IPA Extensions (used in some orthographies)
-    0x0250, 0x02AF,
-
-    // NOTE(cmat): Spacing Modifier Letters
-    0x02B0, 0x02FF,
-
-    // NOTE(cmat): Combining Diacritical Marks
-    0x0300, 0x036F,
-
-    // NOTE(cmat): Greek & Coptic (Greek languages)
-    0x0370, 0x03FF,
-
-    // NOTE(cmat): Cyrillic (Russian, Ukrainian, etc.)
-    0x0400, 0x04FF,
-
-    // NOTE(cmat): Cyrillic Supplement
-    0x0500, 0x052F,
-
-    // NOTE(cmat): General Punctuation
-    0x2000, 0x206F,
-
-    // NOTE(cmat): Currency Symbols (Euro, etc.)
-    0x20A0, 0x20CF,
-
-    // NOTE(cmat): Letterlike Symbols
-    0x2100, 0x214F,
+    // NOTE(cmat): Polish
+    0x0104,
+    0x0105,
+    0x0106,
+    0x0107,
+    0x0118,
+    0x0119,
+    0x0141,
+    0x0142,
+    0x0143,
+    0x0144,
+    0x00D3,
+    0x00F3,
+    0x015A,
+    0x015B,
+    0x0179,
+    0x017A,
+    0x017B,
+    0x017C,
+  
 };
 
 Array_Codepoint Codepoints_EU = array_from_sarray(Array_Codepoint, Codepoints_EU_Data);
