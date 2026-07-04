@@ -271,26 +271,28 @@ fn_internal void g2_draw_text_ext(G2_Text *text) {
     decode_at += advance;
 
     FO_Glyph *g = fo_glyph_get(&text->font->font, codepoint);
-    if (!g->no_texture) {
-      V2F offset = v2f(g->pen_offset.x, g->pen_offset.y);
+    if (g) {
+      if (!g->no_texture) {
+        V2F offset = v2f(g->pen_offset.x, g->pen_offset.y);
 
-      G2_Quad *q      = g2_push_quad(text->font->mat);
-      q->position     = v2f_add(draw_at, offset);
-      q->size         = v2f(g->bounds.x, g->bounds.y);
-      q->color[0]     = C;
-      q->color[1]     = C;
-      q->color[2]     = C;
-      q->color[3]     = C;
+        G2_Quad *q      = g2_push_quad(text->font->mat);
+        q->position     = v2f_add(draw_at, offset);
+        q->size         = v2f(g->bounds.x, g->bounds.y);
+        q->color[0]     = C;
+        q->color[1]     = C;
+        q->color[2]     = C;
+        q->color[3]     = C;
 
-      if (!text->flip) {
-        q->uv_position  = g->atlas_uv.min;
-        q->uv_size      = v2f_sub(g->atlas_uv.max, g->atlas_uv.min);
-      } else {
-        q->uv_position  = v2f(g->atlas_uv.max.x, g->atlas_uv.min.y);
-        q->uv_size      = v2f(g->atlas_uv.min.x - g->atlas_uv.max.x, g->atlas_uv.max.y - g->atlas_uv.min.y);
+        if (!text->flip) {
+          q->uv_position  = g->atlas_uv.min;
+          q->uv_size      = v2f_sub(g->atlas_uv.max, g->atlas_uv.min);
+        } else {
+          q->uv_position  = v2f(g->atlas_uv.max.x, g->atlas_uv.min.y);
+          q->uv_size      = v2f(g->atlas_uv.min.x - g->atlas_uv.max.x, g->atlas_uv.max.y - g->atlas_uv.min.y);
+        }
       }
-    }
 
-    draw_at.x += g->pen_advance;
+      draw_at.x += g->pen_advance;
+    }
   }
 }
