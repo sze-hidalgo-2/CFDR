@@ -25,14 +25,14 @@ jobs:
 
       - name: verify compiler version
         run: |
-          clang-20 --version
+          clang-22 --version
 
       - name: make build-script executable
         run: chmod +x build.sh
 
       - name: run build script
         run: |
-          export CC=clang-20
-          export CXX=clang++-20
-          export LD=ld.lld-20
+          export CC=clang-22
+          export CXX=clang++-22
+          export LD=ld.lld-22
           ./build.sh wasm
