@@ -3,9 +3,9 @@
 
 [Browser Demo](https://memo.sze.hu/?project=examples/stockholm_A.cfdr)
 
-![Volumetric Data](https://github.com/sze-hidalgo-2/CFDR/screenshot_1.png)
-![Data Processing](https://github.com/sze-hidalgo-2/CFDR/screenshot_2.png)
-![Vector Field](https://github.com/sze-hidalgo-2/CFDR/screenshot_3.png)
+![Volumetric Data](https://github.com/sze-hidalgo-2/CFDR/doc/screenshot_1.png)
+![Data Processing](https://github.com/sze-hidalgo-2/CFDR/doc/screenshot_2.png)
+![Vector Field](https://github.com/sze-hidalgo-2/CFDR/doc/screenshot_3.png)
 
 CFDR is a scientific data-visualization program developed and maintained by Matyas Constans,
 with the primary aim to visualize simulation results in different ways in order to get
