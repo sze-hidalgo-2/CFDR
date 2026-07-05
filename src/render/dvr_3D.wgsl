@@ -47,7 +47,7 @@ fn vs_main(@builtin(vertex_index) idx : u32) -> VS_Out {
   return out;
 }
 
-const ray_steps     = 512; // 256;
+const ray_steps     = 64; // 512;
 const ray_step_size = sqrt(sqrt(2) + 1) / ray_steps;
 
 fn intersect_ray_box(ray_origin : vec3<f32>, ray_direction : vec3<f32>) -> vec2<f32> {
