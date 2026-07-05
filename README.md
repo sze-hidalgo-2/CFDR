@@ -4,6 +4,7 @@
 [Browser Demo](https://memo.sze.hu/?project=examples/stockholm_A.cfdr)
 
 ![Volumetric Data](doc/screenshot_1.png)
+![Volumetric Wind](doc/screenshot_1_5.png)
 ![Data Processing](doc/screenshot_2.png)
 ![Vector Field](doc/screenshot_3.png)
 
