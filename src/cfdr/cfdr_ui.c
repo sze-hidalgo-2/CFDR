@@ -302,6 +302,18 @@ fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
           }
         }
 
+        For_U32(it, ui->project_count) {
+          // project_names[it] = str_from_cstr(at->value);
+          Str base  = project_names[it];
+          if (base.len > 5) {
+            Str pre   = str_slice(base, 0,            base.len - 5);
+            Str post  = str_slice(base, base.len - 5, base.len);
+            if (str_equals(post, str_lit(".cfdr"))) {
+              project_names[it] = pre;
+            }
+          }
+        }
+
         if (match_index != -1) {
           Swap(Str, project_names[match_index], project_names[0]);
         }
