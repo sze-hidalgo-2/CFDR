@@ -6,7 +6,6 @@
 ![Volumetric Data](doc/screenshot_1.png)
 ![Volumetric Wind](doc/screenshot_1_5.png)
 ![Data Processing](doc/screenshot_2.png)
-![Vector Field](doc/screenshot_3.png)
 
 CFDR is a scientific data-visualization program developed and maintained by Matyas Constans,
 with the primary aim to visualize simulation results in different ways in order to get
