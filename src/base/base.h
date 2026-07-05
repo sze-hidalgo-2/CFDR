@@ -5,44 +5,44 @@
 // #-- Stack
 
 #define stack_push(first_, node_) stack_push_ext(first_, node_, next)
-#define stack_push_ext(first_, node_, next_name_)   \
-do {                                              \
-(node_)->next_name_ = (first_);                 \
-(first_) = (node_);                             \
+#define stack_push_ext(first_, node_, next_name_)                                   \
+do {                                                                                \
+(node_)->next_name_ = (first_);                                                     \
+(first_) = (node_);                                                                 \
 } while(0)
 
 #define stack_pop(first_) stack_pop_ext(first_, next)
-#define stack_pop_ext(first_, next_name_)           \
-do {                                              \
-(first_) = (first_)->next_name_;                \
+#define stack_pop_ext(first_, next_name_)                                           \
+do {                                                                                \
+(first_) = (first_)->next_name_;                                                    \
 } while(0)
 
 // ------------------------------------------------------------
 // #-- Queue
 
 #define queue_push(first_, last_, node_) queue_push_ext(first_, last_, node_, next)
-#define queue_push_ext(first_, last_, node_, next_name_)  \
-do {                                                    \
-if ((first_) == 0) {                                  \
-(first_) = (node_);                                 \
-(last_)  = (node_);                                 \
-(node_)->next_name_ = 0;                            \
-} else {                                              \
-(last_)->next_name_  = (node_);                     \
-(last_)              = (node_);                     \
-(node_)->next_name_  = 0;                           \
-}                                                     \
+#define queue_push_ext(first_, last_, node_, next_name_)                            \
+do {                                                                                \
+if ((first_) == 0) {                                                                \
+(first_) = (node_);                                                                 \
+(last_)  = (node_);                                                                 \
+(node_)->next_name_ = 0;                                                            \
+} else {                                                                            \
+(last_)->next_name_  = (node_);                                                     \
+(last_)              = (node_);                                                     \
+(node_)->next_name_  = 0;                                                           \
+}                                                                                   \
 } while(0)
 
 #define queue_pop(first_, last_) queue_pop_ext(first_, last_, next)
-#define queue_pop_ext(first_, last_, next_name_)          \
-do {                                                    \
-if ((first_) == (last_)) {                            \
-(first_) = 0;                                       \
-(last_)  = 0;                                       \
-} else {                                              \
-(first_) = (first_)->next_name_;                    \
-}                                                     \
+#define queue_pop_ext(first_, last_, next_name_)                                    \
+do {                                                                                \
+if ((first_) == (last_)) {                                                          \
+(first_) = 0;                                                                       \
+(last_)  = 0;                                                                       \
+} else {                                                                            \
+(first_) = (first_)->next_name_;                                                    \
+}                                                                                   \
 } while(0)
 
 // ------------------------------------------------------------

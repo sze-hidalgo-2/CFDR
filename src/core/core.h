@@ -257,6 +257,7 @@ typedef struct Str_Node {
 
 typedef struct Str_List {
   Str_Node *first;
+  Str_Node *last;
 } Str_List;
 
 #define str_lit(literal_) ((Str) { .txt = (U08 *)(literal_), .len = sizeof(literal_) - 1 })

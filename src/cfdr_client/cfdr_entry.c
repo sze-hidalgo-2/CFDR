@@ -45,6 +45,7 @@ var_global Str Project_Path = { };
 
 var_global CFDR_UI_State  CFDR_UI             = { };
 var_global CFDR_Resource  Project_File        = { };
+var_global CFDR_Resource  Index_File          = { };
 var_global CFDR_State     State               = { };
 var_global G2_Font        UI_Font_Text        = { };
 var_global Arena          Permanent_Storage   = { };
@@ -79,12 +80,46 @@ fn_internal void next_frame(B32 first_frame, PL_Render_Context *render_context) 
     Project_Path = arena_push_str(&Permanent_Storage, project_file);
 
     cfdr_resource_init(&Project_File, Project_Path);
+    cfdr_resource_init(&Index_File,   str_lit("examples/project_list.index"));
   }
 
   CFDR_Resource_Data data = { };
+
+  zero_fill(&data);
   if (cfdr_resource_fetch(&Project_File, &data)) {
     cfdr_eval(&State, str(data.bytes_total, data.bytes_data));
   }
+
+  zero_fill(&data);
+  if (cfdr_resource_fetch(&Index_File, &data)) {
+    // cfdr_eval(&State, str(data.bytes_total, data.bytes_data));
+    Scratch scratch = { };
+    Scratch_Scope(&scratch, 0) {
+      Scan scan = { };
+      scan_init(&scan, scratch.arena, str(data.bytes_total, data.bytes_data));
+
+      for (;;) {
+        if (scan_end(&scan) || scan_error(&scan)) {
+          break;
+        }
+
+        Str str = scan_str(&scan);
+        if (!scan_error(&scan)) {
+          Str_Node *node = arena_push_type(&UI_State.arena, Str_Node);
+          node->value    = arena_push_str(&UI_State.arena, str);
+          queue_push(CFDR_UI.project_list.first, CFDR_UI.project_list.last, node);
+          CFDR_UI.project_count += 1;
+        }
+      }
+
+      for (Scan_Error *it = scan_error(&scan); it; it = it->next) {
+        log_fatal("project_list.index error: %u:%u: %.*s", it->line_at, it->char_at, str_expand(it->message));
+      }
+
+      log_info("Loaded project_list.index file");
+    }
+  }
+
 
   cfdr_ui(&CFDR_UI);
   Resource_Downloading              = 0;

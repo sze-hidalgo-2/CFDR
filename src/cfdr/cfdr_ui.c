@@ -104,6 +104,8 @@ typedef struct CFDR_UI_State {
   V2I          render_image_size;
   R2I          render_image_sample_region;
 
+  U32          project_count;
+  Str_List     project_list;
 } CFDR_UI_State;
 
 fn_internal void cfdr_viewport_render(UI_Response *response, R2F draw_region, CFDR_UI_State *ui) {
@@ -225,6 +227,31 @@ fn_internal void cfdr_ui_init(CFDR_UI_State *ui, CFDR_State *state) {
   arena_init(&ui->render_image_arena);
 }
 
+fn_internal Str cfdr_ui_trim_project_path(Str str) { 
+  if (str.len) {
+    U64 trim_at = str.len - 1;
+    while (trim_at > 0) {
+      if (str.txt[trim_at] == '/') {
+        break;
+
+      } else if (str.txt[trim_at] == 'F' && trim_at >= 2) {
+        if (str.txt[trim_at - 1] == '2' && str.txt[trim_at - 2] == '%') {
+          break;
+        }
+      }
+
+      trim_at -= 1;
+    }
+
+    trim_at += 1;
+    trim_at = u64_min(str.len, trim_at);
+    str.txt += trim_at;
+    str.len -= trim_at;
+  }
+
+  return str;
+}
+
 fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
   UI_Node *menu_bar = ui_container(str_lit("##menu_bar"), UI_Container_Box, Axis2_X, UI_Size_Fill, UI_Size_Fit);
 
@@ -248,16 +275,45 @@ fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
       str_lit("fau_B.cfdr"),
     };
 
-    var_local_persist I32 demo_index = 0;
-    if (ui_list_fixed(str_lit("Examples"), &demo_index, sarray_len(demo_names), demo_names)) {
-      U08 url_buffer[512] = { };
-      js_web_current_url_base(511, url_buffer);
-      Str url = str_from_cstr((char *)url_buffer);
-
+    if (ui->project_list.first) {
       Scratch scratch = { };
       Scratch_Scope(&scratch, 0) {
-        Str load_url = str_cat(scratch.arena, url, str_cat(scratch.arena, str_lit("/?project=examples/"), demo_paths[demo_index]));
-        js_web_load_page(load_url.len, load_url.txt);
+
+        var_local_persist I32 project_index = 0;
+        Str *project_names = arena_push_count(scratch.arena, Str, ui->project_count);
+        Str *project_paths = arena_push_count(scratch.arena, Str, ui->project_count);
+
+        Str_Node *at = ui->project_list.first;
+        For_U32(it, ui->project_count) {
+          project_names[it] = cfdr_ui_trim_project_path(at->value);
+          project_paths[it] = at->value;
+          at                = at->next;
+        }
+
+        // NOTE(cmat): Match project name to current, if match, swap values to first of list.
+        // TODO(cmat): This should be done in ui_list_fixed.
+        I64 match_index = -1;
+        For_U32(it, ui->project_count) {
+          Str lhs = project_names[it];
+          Str rhs = cfdr_ui_trim_project_path(Project_Path);
+          if (str_equals(lhs, rhs)) {
+            match_index = it;
+            break;
+          }
+        }
+
+        if (match_index != -1) {
+          Swap(Str, project_names[match_index], project_names[0]);
+        }
+
+        if (ui_list_fixed(str_lit("Project List"), &project_index, ui->project_count, project_names)) {
+          U08 url_buffer[512] = { };
+          js_web_current_url_base(511, url_buffer);
+          Str url = str_from_cstr((char *)url_buffer);
+
+          Str load_url = str_cat(scratch.arena, url, str_cat(scratch.arena, str_lit("/?project="), project_paths[project_index]));
+          js_web_load_page(load_url.len, load_url.txt);
+        }
       }
     }
 
@@ -270,7 +326,7 @@ fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
         F32 icon_2_width = fo_text_width(&ui->font_icon.font, Icon_FA_SUN);
         F32 icon_width   = f32_max(icon_1_width, icon_2_width);
 
-        UI_Node *theme_button = ui_container(ui->dark_mode ? Icon_FA_MOON : Icon_FA_SUN, UI_Container_Box, Axis2_X, UI_Size_Fixed(icon_width), UI_Size_Fill);
+        UI_Node *theme_button = ui_container(ui->dark_mode ? Icon_FA_MOON : Icon_FA_SUN, UI_Container_Box, Axis2_X, UI_Size_Fixed(icon_width), UI_Size_Fixed(icon_width));
         theme_button->flags  |= UI_Flag_Draw_Label;
         theme_button->flags  |= UI_Flag_Draw_Label_Centered;
         theme_button->flags  |= UI_Flag_Draw_Rounded;
@@ -290,7 +346,7 @@ fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
         F32 icon_2_width = fo_text_width(&ui->font_icon.font, Icon_FA_COG);
         F32 icon_width   = f32_max(icon_1_width, icon_2_width);
 
-        UI_Node *theme_button = ui_container(ui->profile_view ? Icon_FA_BUG : Icon_FA_COG, UI_Container_Box, Axis2_X, UI_Size_Fixed(icon_width), UI_Size_Fill);
+        UI_Node *theme_button = ui_container(ui->profile_view ? Icon_FA_BUG : Icon_FA_COG, UI_Container_Box, Axis2_X, UI_Size_Fixed(icon_width), UI_Size_Fixed(icon_width));
         theme_button->flags  |= UI_Flag_Draw_Label;
         theme_button->flags  |= UI_Flag_Draw_Label_Centered;
         theme_button->flags  |= UI_Flag_Draw_Rounded;
