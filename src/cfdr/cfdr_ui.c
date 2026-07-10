@@ -34,7 +34,11 @@ Icon_X(FA_MOON,                                  "\xef\x86\x86") \
 Icon_X(FA_OBJECT_GROUP,                          "\xef\x89\x87") \
 Icon_X(FA_BARS,                                  "\xef\x83\x89") \
 Icon_X(FA_BUG,                                   "\xef\x86\x88") \
-Icon_X(FA_COG,                                   "\xef\x80\x93")
+Icon_X(FA_COG,                                   "\xef\x80\x93") \
+Icon_X(FA_CIRCLE_DOT,                            "\xef\x86\x92") \
+Icon_X(FA_CLOUD,                                 "\xef\x83\x82") \
+Icon_X(FA_INDUSTRY,                              "\xef\x89\xb5") \
+Icon_X(FA_ARROWS,                                "\xef\x81\x87")
 
 #undef  Icon_X
 #define Icon_X(name_, value_) var_global Str Icon_##name_ = str_lit(value_);
@@ -977,7 +981,14 @@ fn_internal void cfdr_ui_layer_panel(CFDR_UI_State *ui) {
       } else if (ui->tab_mode == CFDR_Tab_Object) {
         for (CFDR_Object_Node *it = ui->state->scene.first; it; it = it->next, ++layer_at) {
           void *active = ui->state->scene.active;
-          cfdr_ui_layer_entry(ui, it->tag, &it->visible, layer_at, it, &active, Icon_FA_CUBE);
+
+          Str icon = str_lit("");
+          if (0);
+          else if (it->flags & CFDR_Object_Flag_Draw_Particles) { icon = Icon_FA_CIRCLE_DOT;  }
+          else if (it->flags & CFDR_Object_Flag_Draw_Volume)    { icon = Icon_FA_CLOUD;       }
+          else if (it->flags & CFDR_Object_Flag_Draw_Surface)   { icon = Icon_FA_INDUSTRY;    }
+
+          cfdr_ui_layer_entry(ui, it->tag, &it->visible, layer_at, it, &active, icon);
           ui->state->scene.active = active;
         }
       } else if (ui->tab_mode == CFDR_Tab_CMap) {

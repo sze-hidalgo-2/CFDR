@@ -161,8 +161,9 @@ fn_internal void cfdr_scene_draw_surface(CFDR_Render *render, CFDR_CMap_Table *c
 }
 
 fn_internal void cfdr_scene_draw_particles(CFDR_Render *render, CFDR_CMap_Table *cmap_table, Str cmap_key, CFDR_Scene_Step *step, CFDR_Object_Node *object, V3F eye_position, M4F view_projection, M4F scene_transform, R2F viewport, F32 largest_axis) {
-  if (object->flags & CFDR_Object_Flag_Draw_Particles) {
-    CFDR_Particles_Step *particles = object->particles.data_array + u64_min(object->particles.step_count, step->step_at);
+  if (object->flags & CFDR_Object_Flag_Draw_Particles && object->visible && object->particles.step_count) {
+    U64 particle_at = u64_min(object->particles.step_count - 1, step->step_at);
+    CFDR_Particles_Step *particles = object->particles.data_array + particle_at;
 
     if (!particles->arrow_dat.initialized) {
       particles->arrow_dat = cfdr_render_arrow_init(render, 2.0, .1f, 1.f, .45f, particles->instance_len);
@@ -173,7 +174,13 @@ fn_internal void cfdr_scene_draw_particles(CFDR_Render *render, CFDR_CMap_Table 
       particles->timer_dat[it] = f32_fract(particles->timer_dat[it]);
 
       F32 t = particles->timer_dat[it];
-      particles->instance_dat[it].Color.a = f32_smoothstep(t, 1, 0);
+      if (t < 0.1f) {
+        F32 t1 = t / 0.1f;
+        particles->instance_dat[it].Color.a = f32_smoothstep(t1, 0, 1);
+      } else {
+        F32 t2 = (t - 0.1f) / 0.9f;
+        particles->instance_dat[it].Color.a = f32_smoothstep(t2, 1, 0);
+      }
 
       V3F target = v3f_mul(largest_axis * 0.1f, particles->anim_dir_dat[it]);
       M4F translate = m4f_hom_translate(v3f_lerp(t, v3f(0, 0, 0), target));
@@ -332,9 +339,9 @@ fn_internal void cfdr_scene_draw_widget_arrow(CFDR_Render *render, CFDR_Scene *s
   HSVA Color_Arrow_Y = hsva_u32(120, 70, 100, 255);
   HSVA Color_Arrow_Z = hsva_u32(240, 70, 100, 255);
 
-  World_Instance x_instance = { x_world };
-  World_Instance y_instance = { y_world };
-  World_Instance z_instance = { z_world };
+  World_Instance x_instance = { .Transform = x_world, .Color = v4f(1, 1, 1, 1) };
+  World_Instance y_instance = { .Transform = y_world, .Color = v4f(1, 1, 1, 1) };
+  World_Instance z_instance = { .Transform = z_world, .Color = v4f(1, 1, 1, 1) };
 
   For_U32(it, 3) {
     U32 idx = draw_order[it];
@@ -492,9 +499,9 @@ fn_internal void cfdr_scene_draw_picker_arrow(CFDR_Render_Arrow *arrow_xyz, CFDR
       Color_Arrow_Z.a = 0.15f;
     }
 
-    World_Instance x_instance = { .Transform = x_world };
-    World_Instance y_instance = { .Transform = y_world };
-    World_Instance z_instance = { .Transform = z_world };
+    World_Instance x_instance = { .Transform = x_world, .Color = v4f(1, 1, 1, 1) };
+    World_Instance y_instance = { .Transform = y_world, .Color = v4f(1, 1, 1, 1) };
+    World_Instance z_instance = { .Transform = z_world, .Color = v4f(1, 1, 1, 1) };
 
     For_U32(it, 3) {
       U32 idx = draw_order[it];
