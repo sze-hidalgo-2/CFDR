@@ -1,4 +1,4 @@
-// (C) Copyright 2025 Matyas Constans
+// (C) Copyright 2025 Matyas Constansbase
 // Licensed under the MIT License (https://opensource.org/license/mit/)
 
 // ------------------------------------------------------------

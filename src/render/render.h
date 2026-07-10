@@ -234,7 +234,7 @@ var_global R_Shader_Layout Grid_3D_Layout = {
 };
 
 var_global R_Shader_Layout Flat_3D_Layout = {
-  .binding_count = 6,
+  .binding_count = 7,
   .binding_array = {
     { .slot_index = 0, .type = R_Binding_Type_Storage,    .stages = R_Binding_Stage_Vertex },
     { .slot_index = 1, .type = R_Binding_Type_Storage,    .stages = R_Binding_Stage_Vertex },
@@ -242,6 +242,7 @@ var_global R_Shader_Layout Flat_3D_Layout = {
     { .slot_index = 3, .type = R_Binding_Type_Texture_2D, .stages = R_Binding_Stage_Pixel },
     { .slot_index = 4, .type = R_Binding_Type_Sampler,    .stages = R_Binding_Stage_Pixel },
     { .slot_index = 5, .type = R_Binding_Type_Uniform,    .stages = R_Binding_Stage_Pixel | R_Binding_Stage_Vertex },
+    { .slot_index = 6, .type = R_Binding_Type_Storage,    .stages = R_Binding_Stage_Pixel | R_Binding_Stage_Vertex },
   },
 };
 

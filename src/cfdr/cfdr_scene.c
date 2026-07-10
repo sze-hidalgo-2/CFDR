@@ -3,17 +3,17 @@ fn_internal void cfdr_scene_view_init(CFDR_Render *render, CFDR_Scene_View *view
   cfdr_camera_init(&view->camera);
   cfdr_render_grid_init(render, &view->grid);
 
-  view->camera_xyz.look_at      = v3f(0, 0, 0);
-  view->camera_xyz.radius_m     = 30.f;
-  view->camera_xyz.theta_deg    = view->camera.theta_deg;
-  view->camera_xyz.phi_deg      = view->camera.phi_deg;
-  view->camera_xyz.near_m       = 0.1f;
-  view->camera_xyz.far_m        = 100.f;
-  view->camera_xyz.fov_deg      = view->camera.fov_deg;
-  view->camera_xyz.orthographic = view->camera.orthographic;
-  view->camera_xyz.radius_m_t   = view->camera_xyz.radius_m;
-  view->camera_xyz.theta_deg_t  = view->camera_xyz.theta_deg;
-  view->camera_xyz.phi_deg_t    = view->camera_xyz.phi_deg;
+  view->camera_xyz.look_at        = v3f(0, 0, 0);
+  view->camera_xyz.radius_m       = 30.f;
+  view->camera_xyz.theta_deg      = view->camera.theta_deg;
+  view->camera_xyz.phi_deg        = view->camera.phi_deg;
+  view->camera_xyz.near_m         = 0.1f;
+  view->camera_xyz.far_m          = 100.f;
+  view->camera_xyz.fov_deg        = view->camera.fov_deg;
+  view->camera_xyz.orthographic   = view->camera.orthographic;
+  view->camera_xyz.radius_m_t     = view->camera_xyz.radius_m;
+  view->camera_xyz.theta_deg_t    = view->camera_xyz.theta_deg;
+  view->camera_xyz.phi_deg_t      = view->camera_xyz.phi_deg;
   view->camera_xyz.orthographic_t = view->camera_xyz.orthographic;
 }
 
@@ -31,11 +31,11 @@ fn_internal void cfdr_scene_init(CFDR_Render *render, CFDR_Scene *scene) {
   cfdr_scene_view_init(render, &scene->view);
 
   For_U32(it, 3) {
-    scene->widget_arrow_xyz[it]         = cfdr_render_arrow_init(render, .1f, 2.f, .75f);
-    scene->picker_arrow_xyz[it]         = cfdr_render_arrow_init(render, .1f, 2.f, .75f);
+    scene->widget_arrow_xyz[it]         = cfdr_render_arrow_init(render, 5.f, .1f, 2.f, .75f, 1);
+    scene->picker_arrow_xyz[it]         = cfdr_render_arrow_init(render, 5.f, .1f, 2.f, .75f, 1);
 
     F32 shadow = 0.08f;
-    scene->picker_arrow_xyz_outline[it] = cfdr_render_arrow_init(render, .1f + shadow, 2.f + shadow, .75f + shadow);
+    scene->picker_arrow_xyz_outline[it] = cfdr_render_arrow_init(render, 5.f, .1f + shadow, 2.f + shadow, .75f + shadow, 1);
   }
 }
 
@@ -44,14 +44,15 @@ fn_internal CFDR_Object_Node *cfdr_scene_push(CFDR_Scene *scene) {
   queue_push(scene->first, scene->last, object);
 
   zero_fill(object);
-  object->flags          = 0;
-  object->color          = v4f(1.f, 0.f, 1.f, 1.f);
-  object->scale          = v3f(1, 1, 1);
-  object->volume_density = 1.f;
+  object->flags           = 0;
+  object->color           = v4f(1.f, 0.f, 1.f, 1.f);
+  object->scale           = v3f(1, 1, 1);
+  object->volume_density  = 1.f;
   object->volume_saturate = 2.5f;
-  object->world_state    = r_buffer_allocate(sizeof(R_Constant_Buffer_World_3D), R_Buffer_Mode_Static);
-  object->vol_state      = r_buffer_allocate(sizeof(R_Constant_Buffer_Vol_3D),   R_Buffer_Mode_Static);
-  object->volume_xyz     = 0;
+  object->world_state     = r_buffer_allocate(sizeof(R_Constant_Buffer_World_3D), R_Buffer_Mode_Static);
+  object->vol_state       = r_buffer_allocate(sizeof(R_Constant_Buffer_Vol_3D),   R_Buffer_Mode_Static);
+  object->instance_buffer = r_buffer_allocate(sizeof(World_Instance),             R_Buffer_Mode_Static);
+  object->volume_xyz      = 0;
 
   return object;
 }
@@ -97,7 +98,7 @@ fn_internal void cfdr_scene_draw_surface(CFDR_Render *render, CFDR_CMap_Table *c
         }
 
         object->bind_group = r_bind_group_create(&Flat_3D_Layout, &(R_Bind_Group_Entry_List) {
-          .count      = 6,
+          .count      = 7,
           .entry_list = {
             { .binding = 0, .type = R_Binding_Type_Storage,    .resource = object->surface.X_buffer      },
             { .binding = 1, .type = R_Binding_Type_Storage,    .resource = object->surface.U_buffer      },
@@ -105,6 +106,7 @@ fn_internal void cfdr_scene_draw_surface(CFDR_Render *render, CFDR_CMap_Table *c
             { .binding = 3, .type = R_Binding_Type_Texture_2D, .resource = R_Texture_2D_White            },
             { .binding = 4, .type = R_Binding_Type_Sampler,    .resource = R_Sampler_Nearest_Clamp       },
             { .binding = 5, .type = R_Binding_Type_Uniform,    .resource = object->world_state           },
+            { .binding = 6, .type = R_Binding_Type_Storage,    .resource = object->instance_buffer       },
           }
         });
 
@@ -155,6 +157,30 @@ fn_internal void cfdr_scene_draw_surface(CFDR_Render *render, CFDR_CMap_Table *c
         cfdr_render_surface_draw(render, &render_surface, eye_position, view_projection, viewport);
       }
     }
+  }
+}
+
+fn_internal void cfdr_scene_draw_particles(CFDR_Render *render, CFDR_CMap_Table *cmap_table, Str cmap_key, CFDR_Scene_Step *step, CFDR_Object_Node *object, V3F eye_position, M4F view_projection, M4F scene_transform, R2F viewport, F32 largest_axis) {
+  if (object->flags & CFDR_Object_Flag_Draw_Particles) {
+    CFDR_Particles_Step *particles = object->particles.data_array + u64_min(object->particles.step_count, step->step_at);
+
+    if (!particles->arrow_dat.initialized) {
+      particles->arrow_dat = cfdr_render_arrow_init(render, 2.0, .1f, 1.f, .45f, particles->instance_len);
+    }
+
+    For_U64 (it, particles->instance_len) {
+      particles->timer_dat[it] += 0.25f * pl_display()->frame_delta;
+      particles->timer_dat[it] = f32_fract(particles->timer_dat[it]);
+
+      F32 t = particles->timer_dat[it];
+      particles->instance_dat[it].Color.a = f32_smoothstep(t, 1, 0);
+
+      V3F target = v3f_mul(largest_axis * 0.1f, particles->anim_dir_dat[it]);
+      M4F translate = m4f_hom_translate(v3f_lerp(t, v3f(0, 0, 0), target));
+      particles->instance_dat[it].Transform = m4f_mul(particles->instance_dat_original[it].Transform, translate);
+    }
+
+    cfdr_render_arrow_draw(render, &particles->arrow_dat, scene_transform, particles->instance_len, particles->instance_dat, view_projection, eye_position, object->color, viewport, 0);
   }
 }
 
@@ -306,12 +332,16 @@ fn_internal void cfdr_scene_draw_widget_arrow(CFDR_Render *render, CFDR_Scene *s
   HSVA Color_Arrow_Y = hsva_u32(120, 70, 100, 255);
   HSVA Color_Arrow_Z = hsva_u32(240, 70, 100, 255);
 
+  World_Instance x_instance = { x_world };
+  World_Instance y_instance = { y_world };
+  World_Instance z_instance = { z_world };
+
   For_U32(it, 3) {
     U32 idx = draw_order[it];
     switch (idx) {
-      case 0: { cfdr_render_arrow_draw(render, &scene->widget_arrow_xyz[it], x_world, xyz_view_projection, eye_position, Color_Arrow_X, draw_region); } break;
-      case 1: { cfdr_render_arrow_draw(render, &scene->widget_arrow_xyz[it], y_world, xyz_view_projection, eye_position, Color_Arrow_Y, draw_region); } break;
-      case 2: { cfdr_render_arrow_draw(render, &scene->widget_arrow_xyz[it], z_world, xyz_view_projection, eye_position, Color_Arrow_Z, draw_region); } break;
+      case 0: { cfdr_render_arrow_draw(render, &scene->widget_arrow_xyz[it], m4f_id(), 1, &x_instance, xyz_view_projection, eye_position, Color_Arrow_X, draw_region, 1); } break;
+      case 1: { cfdr_render_arrow_draw(render, &scene->widget_arrow_xyz[it], m4f_id(), 1, &y_instance, xyz_view_projection, eye_position, Color_Arrow_Y, draw_region, 1); } break;
+      case 2: { cfdr_render_arrow_draw(render, &scene->widget_arrow_xyz[it], m4f_id(), 1, &z_instance, xyz_view_projection, eye_position, Color_Arrow_Z, draw_region, 1); } break;
     }
   }
 }
@@ -462,12 +492,16 @@ fn_internal void cfdr_scene_draw_picker_arrow(CFDR_Render_Arrow *arrow_xyz, CFDR
       Color_Arrow_Z.a = 0.15f;
     }
 
+    World_Instance x_instance = { .Transform = x_world };
+    World_Instance y_instance = { .Transform = y_world };
+    World_Instance z_instance = { .Transform = z_world };
+
     For_U32(it, 3) {
       U32 idx = draw_order[it];
       switch (idx) {
-        case 0: { cfdr_render_arrow_draw(render, &arrow_xyz[it], x_world, view_projection, eye_position, v4f_had(color_tint, Color_Arrow_X), draw_region); } break;
-        case 1: { cfdr_render_arrow_draw(render, &arrow_xyz[it], y_world, view_projection, eye_position, v4f_had(color_tint, Color_Arrow_Y), draw_region); } break;
-        case 2: { cfdr_render_arrow_draw(render, &arrow_xyz[it], z_world, view_projection, eye_position, v4f_had(color_tint, Color_Arrow_Z), draw_region); } break;
+        case 0: { cfdr_render_arrow_draw(render, &arrow_xyz[it], m4f_id(), 1, &x_instance, view_projection, eye_position, v4f_had(color_tint, Color_Arrow_X), draw_region, 1); } break;
+        case 1: { cfdr_render_arrow_draw(render, &arrow_xyz[it], m4f_id(), 1, &y_instance, view_projection, eye_position, v4f_had(color_tint, Color_Arrow_Y), draw_region, 1); } break;
+        case 2: { cfdr_render_arrow_draw(render, &arrow_xyz[it], m4f_id(), 1, &z_instance, view_projection, eye_position, v4f_had(color_tint, Color_Arrow_Z), draw_region, 1); } break;
       }
     }
   }
@@ -517,7 +551,11 @@ fn_internal void cfdr_scene_draw(CFDR_Render *render, CFDR_CMap_Table *cmap_tabl
 
   // NOTE(cmat): Draw opaque objects first.
   for (CFDR_Object_Node *it = scene->first; it; it = it->next) {
-    cfdr_scene_draw_surface (render, cmap_table, scene->cmap, it, eye_position, view_projection, scene_transform, draw_region);
+    cfdr_scene_draw_surface   (render, cmap_table, scene->cmap, it, eye_position, view_projection, scene_transform, draw_region);
+  }
+
+  for (CFDR_Object_Node *it = scene->first; it; it = it->next) {
+    cfdr_scene_draw_particles (render, cmap_table, scene->cmap, &scene->step, it, eye_position, view_projection, scene_transform, draw_region, largest_axis);
   }
 
   // NOTE(cmat): Draw opaque transparent objects last.

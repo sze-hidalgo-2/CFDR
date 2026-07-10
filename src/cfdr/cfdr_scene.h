@@ -1,8 +1,9 @@
 typedef U32 CFDR_Object_Flag;
 enum {
-  CFDR_Object_Flag_None         = 0,
-  CFDR_Object_Flag_Draw_Surface = 1 << 0,
-  CFDR_Object_Flag_Draw_Volume  = 1 << 1,
+  CFDR_Object_Flag_None           = 0,
+  CFDR_Object_Flag_Draw_Surface   = 1 << 0,
+  CFDR_Object_Flag_Draw_Volume    = 1 << 1,
+  CFDR_Object_Flag_Draw_Particles = 1 << 2,
 };
 
 typedef struct CFDR_Volume {
@@ -12,6 +13,22 @@ typedef struct CFDR_Volume {
   Str                   *var_array;
   CFDR_Resource_Volume  *vol_array;
 } CFDR_Volume;
+
+typedef struct CFDR_Particles_Step {
+  U64                 instance_len;
+  World_Instance     *instance_dat;
+  World_Instance     *instance_dat_original;
+  CFDR_Render_Arrow   arrow_dat;
+  F32                *timer_dat;
+
+  V3F                *anim_dir_dat;
+} CFDR_Particles_Step;
+
+typedef struct CFDR_Particles {
+  U64                  step_count;
+  F32                 *step_array;
+  CFDR_Particles_Step *data_array;
+} CFDR_Particles;
 
 typedef struct CFDR_Object_Node {
   struct CFDR_Object_Node  *next;
@@ -32,7 +49,10 @@ typedef struct CFDR_Object_Node {
 
   CFDR_Resource_Surface     surface;
   CFDR_Volume               volume;
+  CFDR_Particles            particles;
 
+  U32                       instance_count;
+  R_Buffer                  instance_buffer;
   R_Buffer                  world_state;
   R_Buffer                  vol_state;
   R_Bind_Group              bind_group;

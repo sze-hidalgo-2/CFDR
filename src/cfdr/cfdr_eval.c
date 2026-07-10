@@ -166,7 +166,7 @@ fn_internal V3I cfdr_eval_get_v3i(CFDR_Value value) {
       I64 at = 0;
       for (CFDR_List_Node *it = value.list->first; it; it = it->next) {
         if (at >= value.list->count) { break; }
-        list_values[at++] = it->value.f32;
+        list_values[at++] = (I32)it->value.f32;
       }
 
       result = v3i(list_values[0], list_values[1], list_values[2]);
@@ -181,15 +181,74 @@ fn_internal V3I cfdr_eval_get_v3i(CFDR_Value value) {
 }
 
 fn_internal V2F cfdr_eval_get_v2f(CFDR_Value value) {
-  V2I result_v2i = cfdr_eval_get_v2i(value);
-  V2F result     = v2f(result_v2i.x, result_v2i.y);
+  V2F result = { };
+  if (value.type == CFDR_Value_Type_List) {
+    if (value.list->count == 2) {
+      F32 list_values[2] = { };
+      
+      I64 at = 0;
+      for (CFDR_List_Node *it = value.list->first; it; it = it->next) {
+        if (at >= value.list->count) { break; }
+        list_values[at++] = it->value.f32;
+      }
+
+      result = v2f(list_values[0], list_values[1]);
+    } else {
+      log_fatal("expected a list of 2 floats");
+    }
+  } else {
+    log_fatal("type mismatch, expected a list value");
+  }
+
   return result;
 }
 
 fn_internal V3F cfdr_eval_get_v3f(CFDR_Value value) {
-  V3I result_v3i = cfdr_eval_get_v3i(value);
-  V3F result     = v3f(result_v3i.x, result_v3i.y, result_v3i.z);
+  V3F result = { };
+  if (value.type == CFDR_Value_Type_List) {
+    if (value.list->count == 3) {
+      F32 list_values[3] = { };
+      
+      I64 at = 0;
+      for (CFDR_List_Node *it = value.list->first; it; it = it->next) {
+        if (at >= value.list->count) { break; }
+        list_values[at++] = it->value.f32;
+      }
+
+      result = v3f(list_values[0], list_values[1], list_values[2]);
+    } else {
+      log_fatal("expected a list of 3 floats");
+    }
+  } else {
+    log_fatal("type mismatch, expected a list value");
+  }
+
   return result;
+}
+
+fn_internal CFDR_Value cfdr_eval_push_i32(Arena *arena, I32 i32) {
+  CFDR_Value value = (CFDR_Value) { .type = CFDR_Value_Type_Float, .f32 = (F32)i32 };
+  return value;
+}
+
+fn_internal CFDR_Value cfdr_eval_push_v3f(Arena *arena, V3F v) {
+  CFDR_Value value = { .type = CFDR_Value_Type_List };
+  CFDR_List  *list = arena_push_type(arena, CFDR_List);
+  list->count      = 0;
+  list->first      = 0;
+  list->last       = 0;
+
+  CFDR_List_Node *node = 0;
+
+  For_U32(it, 3) {
+    node = arena_push_type(arena, CFDR_List_Node);
+    node->value = (CFDR_Value) { .type = CFDR_Value_Type_Float, .f32 = v.dat[it] } ;
+    queue_push(list->first, list->last, node);
+    list->count += 1;
+  }
+
+  value.list = list;
+  return value;
 }
 
 fn_internal CFDR_Value cfdr_eval_literal_def(Arena *arena, TK_Scan *scan) {
@@ -236,6 +295,94 @@ fn_internal CFDR_Value cfdr_eval_literal_def(Arena *arena, TK_Scan *scan) {
     } else {
       log_fatal("expected string after @align");
     }
+  } else if (str_equals(token.text, str_lit("scatter"))) {
+    CFDR_Value expr = cfdr_eval_expr(arena, scan);
+    if (expr.type == CFDR_Value_Type_Table) {
+      CFDR_Table *table = expr.table;
+
+      I32 scatter_count = 0;
+      V3F scatter_min   = v3f(0, 0, 0);
+      V3F scatter_max   = v3f(0, 0, 0);
+      V3F rotate        = v3f(0, 0, 0);
+      V3F scale         = v3f(1, 1, 1);
+      for (CFDR_Table_Node *it = table->first; it; it = it->next) {
+        if (0);
+        else if (str_equals(it->label, str_lit("count")))   { scatter_count   = cfdr_eval_get_i32(it->value); }
+        else if (str_equals(it->label, str_lit("min")))     { scatter_min     = cfdr_eval_get_v3f(it->value); }
+        else if (str_equals(it->label, str_lit("max")))     { scatter_max     = cfdr_eval_get_v3f(it->value); }
+        else if (str_equals(it->label, str_lit("rotate")))  { rotate          = cfdr_eval_get_v3f(it->value); }
+        else if (str_equals(it->label, str_lit("scale")))   { scale           = cfdr_eval_get_v3f(it->value); }
+      }
+
+      // NOTE(cmat): Create list.
+      CFDR_List *list = arena_push_type(arena, CFDR_List); 
+      list->count = 0;
+      list->first = 0;
+      list->last  = 0;
+
+      if (scatter_count > 0) {
+
+        Random_Seed rng = 1234;
+        For_I32(it, scatter_count) {
+          CFDR_Table *table = arena_push_type(arena, CFDR_Table);
+          table->count = 0;
+          table->first = 0;
+          table->last = 0;
+
+          CFDR_Table_Node *node = 0;
+
+          // NOTE(cmat): translate
+          {
+            node = arena_push_type(arena, CFDR_Table_Node);
+            node->label = str_lit("translate");
+
+            V3F translate = v3f_random_unilateral(&rng);
+            For_U32 (it, 3) {
+              translate.dat[it] = translate.dat[it] * (scatter_max.dat[it] - scatter_min.dat[it]) + scatter_min.dat[it];
+            }
+
+            node->value = cfdr_eval_push_v3f(arena, translate);
+            queue_push(table->first, table->last, node);
+            table->count += 1;
+          }
+
+          // NOTE(cmat): rotate
+          {
+            node = arena_push_type(arena, CFDR_Table_Node);
+            node->label = str_lit("rotate");
+            node->value = cfdr_eval_push_v3f(arena, rotate);
+            queue_push(table->first, table->last, node);
+            table->count += 1;
+          }
+
+          // NOTE(cmat): scale
+          {
+            node = arena_push_type(arena, CFDR_Table_Node);
+            node->label = str_lit("scale");
+            node->value = cfdr_eval_push_v3f(arena, scale);
+            queue_push(table->first, table->last, node);
+            table->count += 1;
+          }
+
+          CFDR_Value list_value = { };
+          list_value.type   = CFDR_Value_Type_Table;
+          list_value.table  = table;
+
+          CFDR_List_Node *list_node = arena_push_type(arena, CFDR_List_Node);
+          list_node->value = list_value;
+
+          queue_push(list->first, list->last, list_node);
+          list->count += 1;
+        }
+      }
+
+      value.type = CFDR_Value_Type_List;
+      value.list = list;
+
+    } else {
+      log_fatal("expected table after @scatter");
+    }
+
   }
 
   return value;
@@ -391,6 +538,10 @@ fn_internal void cfdr_eval_directive_overlay(CFDR_State *state, Arena *arena, TK
           cfdr_resource_table_init(&ov->table, cfdr_eval_get_str(it->value));
           ov->flags |= CFDR_Overlay_Flag_Table;
         }
+
+        else if (str_equals(it->label, str_lit("histogram"))) {
+          ov->flags |= CFDR_Overlay_Flag_Histogram;
+        }
       }
 
     } else {
@@ -439,118 +590,237 @@ fn_internal void cfdr_eval_directive_object(CFDR_State *state, Arena *arena, TK_
           log_info("Added surface resource [%.*s]", str_expand(surface_path));
         }
 
-#if 0
-        else if (str_equals(it->label, str_lit("volume")))        {
-          obj->flags |= CFDR_Object_Flag_Draw_Volume;
-          if (it->value.type == CFDR_Value_Type_String) {
-            obj->volume.step_count       = 1;
-            obj->volume.step_array       = arena_push_type(&state->scene.arena, I32);
-            obj->volume.vol_array        = arena_push_type(&state->scene.arena, CFDR_Resource_Volume);
-            obj->volume.step_array[0]    = 0;
-            Str volume_path              = cfdr_eval_get_str(it->value);
+        else if (str_equals(it->label, str_lit("particles"))) {
+          obj->flags |= CFDR_Object_Flag_Draw_Particles;
 
-            cfdr_resource_volume_init(&obj->volume.vol_array[0], volume_path);
-            log_info("Added volume resource [%.*s]", str_expand(volume_path));
+          if (it->value.type == CFDR_Value_Type_Table) {
+            CFDR_Table *step_table = it->value.table;
 
-          } else if (it->value.type == CFDR_Value_Type_List) {
-            CFDR_List *list        = it->value.list;
-            obj->volume.step_count = list->count;
-            obj->volume.step_array = arena_push_count(&state->scene.arena, I32, list->count);
-            obj->volume.vol_array  = arena_push_count(&state->scene.arena, CFDR_Resource_Volume, list->count);
-            U64 step_at            = 0;
+            // NOTE(cmat): Extract steps.
+            U64  step_count = 0;
+            F32 *step_array = 0;
+            for (CFDR_Table_Node *table_it = step_table->first; table_it; table_it = table_it->next) {
+              if (str_equals(table_it->label, str_lit("step"))) {
+                if (table_it->value.type == CFDR_Value_Type_List) {
+                  step_count = table_it->value.list->count;
+                  step_array = arena_push_count(&state->scene.arena, F32, step_count);
 
-            for (CFDR_List_Node *it = list->first; it; it = it->next) {
-              if (it->value.type != CFDR_Value_Type_List || it->value.list->count != 2) {
-                log_fatal("invalid value type in list for volume entry (expected list of form: [step, path])");
-              } else {
-                I32 step        = cfdr_eval_get_i32(it->value.list->first->value);
-                Str volume_path = cfdr_eval_get_str(it->value.list->last->value);
-                obj->volume.step_array[step_at] = step;
-                cfdr_resource_volume_init(&obj->volume.vol_array[step_at], volume_path);
-                ++step_at;
-                log_info("Added volume resource (step = %d) [%.*s]", step, str_expand(volume_path));
+                  U64 step_at = 0;
+                  for (CFDR_List_Node *list_it = table_it->value.list->first; list_it; list_it = list_it->next) {
+                    step_array[step_at++] = cfdr_eval_get_f32(list_it->value);
+                  }
+
+                } else {
+                  log_fatal("Expected list");
+                }
               }
             }
+
+            obj->particles.step_count = step_count;
+            obj->particles.step_array = step_array;
+            if (step_count) {
+              obj->particles.data_array = arena_push_count(&state->scene.arena, CFDR_Particles_Step, step_count);
+
+              for (CFDR_Table_Node *data_table_it = step_table->first; data_table_it; data_table_it = data_table_it->next) {
+                if (str_equals(data_table_it->label, str_lit("data"))) {
+                  if (data_table_it->value.type == CFDR_Value_Type_List) {
+                    CFDR_List *data_list = data_table_it->value.list;
+
+                    U64 step_at = 0;
+                    for (CFDR_List_Node *data_list_it = data_list->first; data_list_it; data_list_it = data_list_it->next) {
+                      CFDR_Particles_Step *particle_step = obj->particles.data_array + (step_at++);
+
+
+                      if (data_list_it->value.type == CFDR_Value_Type_List) {
+                        CFDR_List *list    = data_list_it->value.list;
+                        U64 particle_count = list->count;
+
+                        particle_step->instance_len          = list->count;
+                        particle_step->instance_dat          = arena_push_count(&state->scene.arena, World_Instance, list->count);
+                        particle_step->instance_dat_original = arena_push_count(&state->scene.arena, World_Instance, list->count);
+                        particle_step->timer_dat             = arena_push_count(&state->scene.arena, F32,            list->count);
+                        particle_step->anim_dir_dat          = arena_push_count(&state->scene.arena, V3F,            list->count);
+
+                        Random_Seed rng = 1234;
+                        For_U64 (it, particle_step->instance_len) {
+                          particle_step->timer_dat[it] = f32_random_unilateral(&rng);
+                        }
+
+                        U64 instance_at = 0;
+                        for (CFDR_List_Node *list_it = list->first; list_it; list_it = list_it->next) {
+                          if (list_it->value.type == CFDR_Value_Type_Table) {
+
+                            V3F translate = { };
+                            V3F rotate    = { };
+                            V3F scale     = { };
+
+                            CFDR_Table *table = list_it->value.table;
+                            for (CFDR_Table_Node *table_it = table->first; table_it; table_it = table_it->next) {
+                              if (0);
+                              else if (str_equals(table_it->label, str_lit("translate")))  { translate = cfdr_eval_get_v3f(table_it->value); }
+                              else if (str_equals(table_it->label, str_lit("rotate")))     { rotate    = cfdr_eval_get_v3f(table_it->value); }
+                              else if (str_equals(table_it->label, str_lit("scale")))      { scale     = cfdr_eval_get_v3f(table_it->value); }
+                            }
+
+
+                            M4F translate_4 = m4f_hom_translate  (translate);
+                            M4F rotate_4    = m4f_hom_rotate_xyz (v3f(f32_radians_from_degrees(rotate.x),
+                                                                      f32_radians_from_degrees(rotate.y),
+                                                                      f32_radians_from_degrees(rotate.z)));
+                            M4F scale_4     = m4f_hom_scale      (scale);
+                            M4F transform   = m4f_mul            (m4f_mul(scale_4, rotate_4), translate_4);
+
+                            particle_step->anim_dir_dat[instance_at]   = v3f_noz(m4f_mul_v4f(v4f(1, 0, 0, 1), rotate_4).xyz);
+
+                            particle_step->instance_dat_original[instance_at] = (World_Instance) {
+                              .Transform = transform,
+                              .Color     = v4f(1, 1, 1, 1),
+                            };
+
+                            particle_step->instance_dat[instance_at++] = (World_Instance) {
+                              .Transform = transform,
+                              .Color     = v4f(1, 1, 1, 1),
+                            };
+
+
+                          } else {
+                            log_fatal("Expected table value");
+                          }
+                        }
+
+                      } else {
+                        log_fatal("Expected list value");
+                      }
+                    }
+
+                  } else {
+                    log_fatal("Expected list");
+                  }
+                }
+              }
+            }
+
+            /*
+            if (it->value.type == CFDR_Value_Type_List) {
+              CFDR_List *list    = it->value.list;
+              U64 particle_count = list->count;
+
+              obj->particles.instance_len = list->count;
+              obj->particles.instance_dat = arena_push_count(&state->scene.arena, World_Instance, list->count);
+
+              U64 instance_at = 0;
+              for (CFDR_List_Node *list_it = list->first; list_it; list_it = list_it->next) {
+                if (list_it->value.type == CFDR_Value_Type_Table) {
+
+                  V3F translate = { };
+                  V3F rotate    = { };
+                  V3F scale     = { };
+
+                  CFDR_Table *table = list_it->value.table;
+                  for (CFDR_Table_Node *table_it = table->first; table_it; table_it = table_it->next) {
+                    if (0);
+                    else if (str_equals(table_it->label, str_lit("translate")))  { translate = cfdr_eval_get_v3f(table_it->value); }
+                    else if (str_equals(table_it->label, str_lit("rotate")))     { rotate    = cfdr_eval_get_v3f(table_it->value); }
+                    else if (str_equals(table_it->label, str_lit("scale")))      { scale     = cfdr_eval_get_v3f(table_it->value); }
+                  }
+
+                  log_info("(%f %f %f), (%f %f %f), (%f %f %f)", V3_Expand(translate), V3_Expand(rotate), V3_Expand(scale));
+
+                  M4F translate_4 = m4f_hom_translate  (translate);
+                  M4F rotate_4    = m4f_hom_rotate_xyz (v3f(f32_radians_from_degrees(rotate.x),
+                                                            f32_radians_from_degrees(rotate.y),
+                                                            f32_radians_from_degrees(rotate.z)));
+                  M4F scale_4     = m4f_hom_scale      (scale);
+                  M4F transform   = m4f_mul            (m4f_mul(scale_4, rotate_4), translate_4);
+
+                  obj->particles.instance_dat[instance_at++] = (World_Instance) {
+                    .Transform = transform,
+                  };
+
+                } else {
+                  log_fatal("Expected table value");
+                }
+              }
+
+            } else {
+              log_fatal("Expected list value");
+            }
+            */
           } else {
-            log_fatal("invalid value type for volume entry");
+            log_fatal("Expected table value");
           }
-#else
-      else if (str_equals(it->label, str_lit("volume"))) {
-        obj->flags |= CFDR_Object_Flag_Draw_Volume;
-
-        // obj->volume.step_count = list->count;
-        // obj->volume.step_array = arena_push_count(&state->scene.arena, I32, list->count);
-        // obj->volume.vol_array  = arena_push_count(&state->scene.arena, CFDR_Resource_Volume, list->count);
-        // U64 step_at            = 0;
-        
-        U64  step_count = 0;
-        F32 *step_array = 0;
-
-        U64  var_count = 0;
-        Str *var_array = 0;
-
-        CFDR_Value table = it->value;
-        if (table.type == CFDR_Value_Type_Table) {
-
-          Str path = str_lit("");
-          for (CFDR_Table_Node *table_it = table.table->first; table_it; table_it = table_it->next) {
-            if (str_equals(table_it->label, str_lit("step"))) {
-              CFDR_List *list = table_it->value.list;
-              step_count      = list->count;
-              step_array      = arena_push_count(&state->scene.arena, F32, list->count);
-
-              U64 step_at = 0;
-              for (CFDR_List_Node *it = list->first; it; it = it->next) {
-                F32 step = cfdr_eval_get_f32(it->value);
-                step_array[step_at++] = step;
-              }
-
-            } else if (str_equals(table_it->label, str_lit("variable"))) {
-              CFDR_List *list = table_it->value.list;
-              var_count      = list->count;
-              var_array      = arena_push_count(&state->scene.arena, Str, list->count);
-
-              U64 var_at = 0;
-              for (CFDR_List_Node *it = list->first; it; it = it->next) {
-                Str var = cfdr_eval_get_str(it->value);
-                var_array[var_at++] = arena_push_str(&state->scene.arena, var);
-              }
-
-            } else if (str_equals(table_it->label, str_lit("path"))) {
-              path = cfdr_eval_get_str(table_it->value);
-            }
-          }
-
-          obj->volume.step_count = step_count;
-          obj->volume.step_array = step_array;
-          obj->volume.var_count  = var_count;
-          obj->volume.var_array  = var_array;
-          obj->volume.vol_array  = arena_push_count(&state->scene.arena, CFDR_Resource_Volume, var_count * step_count);
-
-          U64 vol_at = 0;
-          Scratch scratch = { };
-          Scratch_Scope(&scratch, arena) {
-            For_U64 (it_var, var_count) {
-              For_U64 (it_step, step_count) {
-                  char buffer[1024] = { };
-                  stbsp_snprintf(buffer, 512, "%d", (I32)obj->volume.step_array[it_step]);
-
-                  Str sub_1 = str_replace(scratch.arena, path,  str_lit("$(var)"),  obj->volume.var_array[it_var]);
-                  Str sub_2 = str_replace(scratch.arena, sub_1, str_lit("$(step)"), str_from_cstr(buffer));
-
-                  log_info("STEP :: %.*s", str_expand(sub_2));
-                  cfdr_resource_volume_init(&obj->volume.vol_array[vol_at++], sub_2);
-              }
-            }
-          }
-
-          log_info("Added volume resources. %llu steps, %llu variables", step_count, var_count);
-
-        } else {
-          log_fatal("expected table after volume key in #object table");
         }
-      }
-#endif
+
+        else if (str_equals(it->label, str_lit("volume"))) {
+          obj->flags |= CFDR_Object_Flag_Draw_Volume;
+          
+          U64  step_count = 0;
+          F32 *step_array = 0;
+
+          U64  var_count = 0;
+          Str *var_array = 0;
+
+          CFDR_Value table = it->value;
+          if (table.type == CFDR_Value_Type_Table) {
+
+            Str path = str_lit("");
+            for (CFDR_Table_Node *table_it = table.table->first; table_it; table_it = table_it->next) {
+              if (str_equals(table_it->label, str_lit("step"))) {
+                CFDR_List *list = table_it->value.list;
+                step_count      = list->count;
+                step_array      = arena_push_count(&state->scene.arena, F32, list->count);
+
+                U64 step_at = 0;
+                for (CFDR_List_Node *it = list->first; it; it = it->next) {
+                  F32 step = cfdr_eval_get_f32(it->value);
+                  step_array[step_at++] = step;
+                }
+
+              } else if (str_equals(table_it->label, str_lit("variable"))) {
+                CFDR_List *list = table_it->value.list;
+                var_count      = list->count;
+                var_array      = arena_push_count(&state->scene.arena, Str, list->count);
+
+                U64 var_at = 0;
+                for (CFDR_List_Node *it = list->first; it; it = it->next) {
+                  Str var = cfdr_eval_get_str(it->value);
+                  var_array[var_at++] = arena_push_str(&state->scene.arena, var);
+                }
+
+              } else if (str_equals(table_it->label, str_lit("path"))) {
+                path = cfdr_eval_get_str(table_it->value);
+              }
+            }
+
+            obj->volume.step_count = step_count;
+            obj->volume.step_array = step_array;
+            obj->volume.var_count  = var_count;
+            obj->volume.var_array  = var_array;
+            obj->volume.vol_array  = arena_push_count(&state->scene.arena, CFDR_Resource_Volume, var_count * step_count);
+
+            U64 vol_at = 0;
+            Scratch scratch = { };
+            Scratch_Scope(&scratch, arena) {
+              For_U64 (it_var, var_count) {
+                For_U64 (it_step, step_count) {
+                    char buffer[1024] = { };
+                    stbsp_snprintf(buffer, 512, "%d", (I32)obj->volume.step_array[it_step]);
+
+                    Str sub_1 = str_replace(scratch.arena, path,  str_lit("$(var)"),  obj->volume.var_array[it_var]);
+                    Str sub_2 = str_replace(scratch.arena, sub_1, str_lit("$(step)"), str_from_cstr(buffer));
+
+                    log_info("STEP :: %.*s", str_expand(sub_2));
+                    cfdr_resource_volume_init(&obj->volume.vol_array[vol_at++], sub_2);
+                }
+              }
+            }
+
+            log_info("Added volume resources. %llu steps, %llu variables", step_count, var_count);
+
+          } else {
+            log_fatal("expected table after volume key in #object table");
+          }
+        }
       }
     } else {
       log_fatal("expected table after #object [tag] directive");

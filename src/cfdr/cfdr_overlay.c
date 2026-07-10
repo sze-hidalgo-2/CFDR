@@ -191,6 +191,33 @@ fn_internal void cfdr_overlay_draw_cmap(CFDR_Overlay *overlay, CFDR_CMap_Table *
   }
 }
 
+fn_internal void cfdr_overlay_draw_histogram(CFDR_Overlay *overlay, CFDR_Scene *scene, CFDR_Overlay_Node *node, R2F draw_region) {
+  if (node->flags & CFDR_Overlay_Flag_Histogram) {
+    Scratch scratch = { };
+    Scratch_Scope(&scratch, 0) {
+    
+      V2F draw_at     = v2f(0, 0);
+      V2F region_size = v2f_mul(js_web_device_pixel_ratio(), v2f(400, 250));
+
+      switch (node->position_x) {
+        case Align2_Left:    { draw_at.x = draw_region.min.x + node->border.x;                                                  } break;
+        case Align2_Right:   { draw_at.x = draw_region.max.x - region_size.x - node->border.x;                                  } break;
+        case Align2_Center:  { draw_at.x = draw_region.min.x + .5f * ((draw_region.max.x - draw_region.min.x) - region_size.x); } break;
+      }
+
+      switch (node->position_y) {
+        case Align2_Bottom:    { draw_at.y = draw_region.min.y + node->border.y;                                                  } break;
+        case Align2_Top:       { draw_at.y = draw_region.max.y - region_size.y  - node->border.y;                                 } break;
+        case Align2_Center:    { draw_at.y = draw_region.min.y + .5f * ((draw_region.max.y - draw_region.min.y) - region_size.y); } break;
+      }
+     
+      g2_draw_rect_rounded(draw_at, region_size, 8, .color = v4f(0, 0, 0, .4f));
+    }
+  }
+}
+
+
+
 fn_internal void cfdr_overlay_draw(CFDR_Overlay *overlay, CFDR_CMap_Table *cmap_table, CFDR_Scene *scene, R2F draw_region) {
   g2_clip_region(r2i_from_r2f(draw_region));
 
@@ -208,8 +235,9 @@ fn_internal void cfdr_overlay_draw(CFDR_Overlay *overlay, CFDR_CMap_Table *cmap_
 
   for (CFDR_Overlay_Node *it = overlay->first; it; it = it->next) {
     if (it->visible) {
-      cfdr_overlay_draw_text(overlay, scene, it, draw_region);
-      cfdr_overlay_draw_tags(overlay, scene, it, draw_region);
+      cfdr_overlay_draw_text      (overlay, scene, it, draw_region);
+      cfdr_overlay_draw_tags      (overlay, scene, it, draw_region);
+      cfdr_overlay_draw_histogram (overlay, scene, it, draw_region);
     }
   }
 

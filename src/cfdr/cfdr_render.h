@@ -3,6 +3,7 @@ enum {
   CFDR_Render_Pipeline_Grid,
   CFDR_Render_Pipeline_Flat,
   CFDR_Render_Pipeline_Flat_Overlay,
+  CFDR_Render_Pipeline_Flat_No_Cull,
   CFDR_Render_Pipeline_Matcap,
   CFDR_Render_Pipeline_Volume,
   CFDR_Render_Pipeline_Sample,
@@ -10,6 +11,10 @@ enum {
   CFDR_Render_Pipeline_Count
 };
 
+typedef struct World_Instance {
+  alignas(16) M4F Transform;
+  alignas(16) V4F Color;
+} World_Instance;
 
 // TODO(cmat): Proper materials. We want to store bindgroups here essentially.
 typedef I32 CFDR_Material;
@@ -52,6 +57,14 @@ fn_internal void cfdr_render_init(CFDR_Render *render) {
     .depth_write = 1,
     .depth_bias  = 0,
     .cull_face   = 1,
+  });
+
+  render->pipelines[CFDR_Render_Pipeline_Flat_No_Cull] = r_pipeline_create(&(R_Pipeline_Layout) {
+    .shader      = R_Shader_Flat_3D,
+    .depth_test  = 1,
+    .depth_write = 1,
+    .depth_bias  = 0,
+    .cull_face   = 0,
   });
 
   render->pipelines[CFDR_Render_Pipeline_Flat_Overlay] = r_pipeline_create(&(R_Pipeline_Layout) {
@@ -185,7 +198,7 @@ typedef struct CFDR_Render_Grid {
 
 fn_internal void cfdr_render_grid_init(CFDR_Render *render, CFDR_Render_Grid *grid) {
 grid->state_buffer = r_buffer_allocate(sizeof(R_Constant_Buffer_Grid_3D), R_Buffer_Mode_Dynamic);
-  grid->bind_group   = r_bind_group_create(&Grid_3D_Layout, &(R_Bind_Group_Entry_List) {
+  grid->bind_group = r_bind_group_create(&Grid_3D_Layout, &(R_Bind_Group_Entry_List) {
     .count      = 3,
     .entry_list = {
       { .binding = 0, .type = R_Binding_Type_Storage, .resource = render->quad_X_buffer },
@@ -392,23 +405,27 @@ fn_internal void cfdr_render_volume_draw(CFDR_Render *render, CFDR_Render_Volume
 }
 
 typedef struct CFDR_Render_Arrow {
+  B32             initialized;
   R_Bind_Group    arrow_bind_group;
   R_Buffer        arrow_state_buffer;
+  R_Buffer        arrow_instance_buffer;
 
   U32             arrow_index_count;
+  U32             arrow_instance_count;
   R_Buffer        arrow_X_buffer;
   R_Buffer        arrow_U_buffer;
   R_Buffer        arrow_N_buffer;
   R_Buffer        arrow_index_buffer;
 } CFDR_Render_Arrow;
 
-fn_internal CFDR_Render_Arrow cfdr_render_arrow_init(CFDR_Render *render, F32 cylinder_r, F32 cone_len, F32 cone_r) {
+fn_internal CFDR_Render_Arrow cfdr_render_arrow_init(CFDR_Render *render, F32 cylinder_len, F32 cylinder_r, F32 cone_len, F32 cone_r, U32 instance_count) {
   CFDR_Render_Arrow arrow  = { };
+  arrow.initialized        = 1;
 
   Scratch scratch = { };
   Scratch_Scope(&scratch, 0) {
     GEO3_Surface arrow_geo = geo3_build_arrow(scratch.arena, v3f(1, 0, 0),
-        5.0f,  // cylinder length
+        cylinder_len,  // cylinder length
         cylinder_r, // 0.1f,  // cylidner radius
         cone_len, // 2.f,   // cone length
         cone_r, // 0.75f, // cone radius
@@ -439,8 +456,10 @@ fn_internal CFDR_Render_Arrow cfdr_render_arrow_init(CFDR_Render *render, F32 cy
   }
 
   arrow.arrow_state_buffer = r_buffer_allocate(sizeof(R_Constant_Buffer_World_3D), R_Buffer_Mode_Static);
+  arrow.arrow_instance_buffer = r_buffer_allocate(instance_count * sizeof(World_Instance), R_Buffer_Mode_Static);
+
   arrow.arrow_bind_group   = r_bind_group_create(&Flat_3D_Layout, &(R_Bind_Group_Entry_List) {
-    .count = 6,
+    .count = 7,
     .entry_list = {
       { .binding = 0, .type = R_Binding_Type_Storage,    .resource = arrow.arrow_X_buffer      },
       { .binding = 1, .type = R_Binding_Type_Storage,    .resource = arrow.arrow_U_buffer      },
@@ -448,6 +467,7 @@ fn_internal CFDR_Render_Arrow cfdr_render_arrow_init(CFDR_Render *render, F32 cy
       { .binding = 3, .type = R_Binding_Type_Texture_2D, .resource = R_Texture_2D_White          },
       { .binding = 4, .type = R_Binding_Type_Sampler,    .resource = R_Sampler_Nearest_Clamp     },
       { .binding = 5, .type = R_Binding_Type_Uniform,    .resource = arrow.arrow_state_buffer    },
+      { .binding = 6, .type = R_Binding_Type_Storage,    .resource = arrow.arrow_instance_buffer    },
     }
   });
 
@@ -472,8 +492,18 @@ fn_internal M4F cfdr_arrow_transform(V3F direction, F32 scale) {
   return result;
 }
 
-fn_internal void cfdr_render_arrow_draw(CFDR_Render *render, CFDR_Render_Arrow *arrow, M4F world, M4F view_projection, V3F eye_position, HSVA color, R2F viewport) {
-  world                     = cfdr_render_apply_basis_change(world);
+fn_internal void cfdr_render_arrow_draw(CFDR_Render *render,
+                                        CFDR_Render_Arrow *arrow,
+                                        M4F             scene_transform,
+                                        U32             instance_len,
+                                        World_Instance *instance_dat,
+                                        M4F view_projection,
+                                        V3F eye_position,
+                                        HSVA color,
+                                        R2F viewport,
+                                        B32 overlay) {
+
+  M4F world                 = cfdr_render_apply_basis_change(scene_transform);
   M4F world_view_projection = m4f_mul(world, view_projection);
 
   M4F world_inv = { };
@@ -491,17 +521,17 @@ fn_internal void cfdr_render_arrow_draw(CFDR_Render *render, CFDR_Render_Arrow *
   };
 
   r_buffer_download(arrow->arrow_state_buffer, 0, sizeof(world_data), &world_data);
+  r_buffer_download(arrow->arrow_instance_buffer, 0, instance_len * sizeof(World_Instance), instance_dat);
 
   r_command_push_draw(&(R_Command_Draw) {
-    .pipeline           = render->pipelines[CFDR_Render_Pipeline_Flat_Overlay],
-    .bind_group         = arrow->arrow_bind_group,
-    .index_buffer       = arrow->arrow_index_buffer,
-    .draw_index_count   = arrow->arrow_index_count,
-    .draw_index_offset  = 0,
-    .draw_instance_count = 1,
-
-    .depth_test         = 1,
-    .draw_region        = r2i_from_r2f(viewport),
-    .clip_region        = r2i_from_r2f(viewport),
+    .pipeline            = render->pipelines[overlay ? CFDR_Render_Pipeline_Flat_Overlay : CFDR_Render_Pipeline_Flat_No_Cull],
+    .bind_group          = arrow->arrow_bind_group,
+    .index_buffer        = arrow->arrow_index_buffer,
+    .draw_index_count    = arrow->arrow_index_count,
+    .draw_index_offset   = 0,
+    .draw_instance_count = instance_len,
+    .depth_test          = 1,
+    .draw_region         = r2i_from_r2f(viewport),
+    .clip_region         = r2i_from_r2f(viewport),
   });
 }

@@ -9,12 +9,18 @@ struct World_3D_Type {
   @align(16) Color                   : vec4<f32>,
 };
 
-@group(0) @binding(0) var<storage, read> X_Buffer : array<vec4<f32>>;
-@group(0) @binding(1) var<storage, read> U_Buffer : array<vec2<f32>>;
-@group(0) @binding(2) var<storage, read> N_Buffer : array<vec4<f32>>;
-@group(0) @binding(3) var Texture                 : texture_2d<f32>;
-@group(0) @binding(4) var Sampler                 : sampler;
-@group(0) @binding(5) var<uniform> World_3D       : World_3D_Type;
+struct Instance {
+  @align(16) Transform  : mat4x4<f32>,
+  @align(16) Color      : vec4<f32>,
+};
+
+@group(0) @binding(0) var<storage, read> X_Buffer         : array<vec4<f32>>;
+@group(0) @binding(1) var<storage, read> U_Buffer         : array<vec2<f32>>;
+@group(0) @binding(2) var<storage, read> N_Buffer         : array<vec4<f32>>;
+@group(0) @binding(3) var Texture                         : texture_2d<f32>;
+@group(0) @binding(4) var Sampler                         : sampler;
+@group(0) @binding(5) var<uniform> World_3D               : World_3D_Type;
+@group(0) @binding(6) var<storage, read>  I_Buffer        : array<Instance>;
 
 fn vec4_unpack_u32(packed: u32) -> vec4<f32> {
   let r = f32((packed >> 0)  & 0xFFu) / 255.0;
@@ -33,14 +39,15 @@ struct VS_Out {
 };
 
 @vertex
-fn vs_main(@builtin(vertex_index) idx : u32) -> VS_Out {
+fn vs_main(@builtin(vertex_index) idx : u32, @builtin(instance_index) instance : u32) -> VS_Out {
    let X = X_Buffer[idx];
    let U = U_Buffer[idx];
    let N = N_Buffer[idx];
+   let I = I_Buffer[instance];
 
    var out : VS_Out;
    out.X_Clip = transpose(World_3D.World_View_Projection) * X;
-   out.X      = (transpose(World_3D.World) * X).xyz;
+   out.X      = (transpose(World_3D.World * I.Transform) * X).xyz;
    out.N      = (transpose(World_3D.World_Inverse_Transpose) * vec4<f32>(N.xyz, 0.0)).xyz;
    out.U      = U;
 

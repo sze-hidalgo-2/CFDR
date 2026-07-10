@@ -4,6 +4,7 @@ enum {
   CFDR_Overlay_Flag_Background  = 1 << 0,
   CFDR_Overlay_Flag_Shadow      = 1 << 1,
   CFDR_Overlay_Flag_Table       = 1 << 2,
+  CFDR_Overlay_Flag_Histogram   = 1 << 3,
 };
 
 typedef struct CFDR_Overlay_Node {
