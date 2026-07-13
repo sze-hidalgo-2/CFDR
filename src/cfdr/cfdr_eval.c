@@ -532,8 +532,8 @@ fn_internal void cfdr_eval_directive_overlay(CFDR_State *state, Arena *arena, TK
         else if (str_equals(it->label, str_lit("border")))          { ov->border            = cfdr_eval_get_v2f     (it->value);                       }
         else if (str_equals(it->label, str_lit("shadow_offset")))   { ov->shadow_offset     = cfdr_eval_get_i32     (it->value);                       }
 
-        else if (str_equals(it->label, str_lit("background")))    { if  (cfdr_eval_get_bool(it->value)) { ov->flags |= CFDR_Overlay_Flag_Background; }  }
-        else if (str_equals(it->label, str_lit("shadow")))        { if  (cfdr_eval_get_bool(it->value)) { ov->flags |= CFDR_Overlay_Flag_Shadow;     }  }
+        else if (str_equals(it->label, str_lit("background")))      { if  (cfdr_eval_get_bool(it->value)) { ov->flags |= CFDR_Overlay_Flag_Background; }  }
+        else if (str_equals(it->label, str_lit("shadow")))          { if  (cfdr_eval_get_bool(it->value)) { ov->flags |= CFDR_Overlay_Flag_Shadow;     }  }
 
         else if (str_equals(it->label, str_lit("histogram_min_bounds"))) { ov->histogram_min_bounds = cfdr_eval_get_v3f(it->value);                    }
         else if (str_equals(it->label, str_lit("histogram_max_bounds"))) { ov->histogram_max_bounds = cfdr_eval_get_v3f(it->value);                    }
@@ -543,8 +543,30 @@ fn_internal void cfdr_eval_directive_overlay(CFDR_State *state, Arena *arena, TK
           ov->flags |= CFDR_Overlay_Flag_Table;
         }
 
-        else if (str_equals(it->label, str_lit("histogram"))) {
+        else if (str_equals(it->label, str_lit("histogram_ranges"))) {
           ov->flags |= CFDR_Overlay_Flag_Histogram;
+
+          if (it->value.type == CFDR_Value_Type_List) {
+            CFDR_List *list = it->value.list;
+
+            Scratch scratch = { };
+            Scratch_Scope(&scratch, 0) {
+              // NOTE(cmat): Extract ranges.
+              U64  range_count = list->count;
+              F32 *range_array = arena_push_count(scratch.arena, F32, range_count);
+
+              U64 range_at = 0;
+              for (CFDR_List_Node *it = list->first; it; it = it->next) {
+                F32 value = cfdr_eval_get_f32(it->value);
+                range_array[range_at++] = value;
+              }
+
+              cfdr_histogram_init(&ov->histogram, range_count, range_array);
+            }
+
+          } else {
+            log_fatal("execpted list for histogram_ranges entry");
+          }
         }
       }
 
@@ -706,53 +728,6 @@ fn_internal void cfdr_eval_directive_object(CFDR_State *state, Arena *arena, TK_
                 }
               }
             }
-
-            /*
-            if (it->value.type == CFDR_Value_Type_List) {
-              CFDR_List *list    = it->value.list;
-              U64 particle_count = list->count;
-
-              obj->particles.instance_len = list->count;
-              obj->particles.instance_dat = arena_push_count(&state->scene.arena, World_Instance, list->count);
-
-              U64 instance_at = 0;
-              for (CFDR_List_Node *list_it = list->first; list_it; list_it = list_it->next) {
-                if (list_it->value.type == CFDR_Value_Type_Table) {
-
-                  V3F translate = { };
-                  V3F rotate    = { };
-                  V3F scale     = { };
-
-                  CFDR_Table *table = list_it->value.table;
-                  for (CFDR_Table_Node *table_it = table->first; table_it; table_it = table_it->next) {
-                    if (0);
-                    else if (str_equals(table_it->label, str_lit("translate")))  { translate = cfdr_eval_get_v3f(table_it->value); }
-                    else if (str_equals(table_it->label, str_lit("rotate")))     { rotate    = cfdr_eval_get_v3f(table_it->value); }
-                    else if (str_equals(table_it->label, str_lit("scale")))      { scale     = cfdr_eval_get_v3f(table_it->value); }
-                  }
-
-                  log_info("(%f %f %f), (%f %f %f), (%f %f %f)", V3_Expand(translate), V3_Expand(rotate), V3_Expand(scale));
-
-                  M4F translate_4 = m4f_hom_translate  (translate);
-                  M4F rotate_4    = m4f_hom_rotate_xyz (v3f(f32_radians_from_degrees(rotate.x),
-                                                            f32_radians_from_degrees(rotate.y),
-                                                            f32_radians_from_degrees(rotate.z)));
-                  M4F scale_4     = m4f_hom_scale      (scale);
-                  M4F transform   = m4f_mul            (m4f_mul(scale_4, rotate_4), translate_4);
-
-                  obj->particles.instance_dat[instance_at++] = (World_Instance) {
-                    .Transform = transform,
-                  };
-
-                } else {
-                  log_fatal("Expected table value");
-                }
-              }
-
-            } else {
-              log_fatal("Expected list value");
-            }
-            */
           } else {
             log_fatal("Expected table value");
           }
@@ -815,8 +790,6 @@ fn_internal void cfdr_eval_directive_object(CFDR_State *state, Arena *arena, TK_
 
                     Str sub_1 = str_replace(scratch.arena, path,  str_lit("$(var)"),  obj->volume.var_array[it_var]);
                     Str sub_2 = str_replace(scratch.arena, sub_1, str_lit("$(step)"), str_from_cstr(buffer));
-
-                    log_info("STEP :: %.*s", str_expand(sub_2));
                     cfdr_resource_volume_init(&obj->volume.vol_array[vol_at++], sub_2);
                 }
               }

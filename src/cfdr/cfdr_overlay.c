@@ -226,11 +226,13 @@ fn_internal void cfdr_overlay_draw_histogram(CFDR_Overlay *overlay, CFDR_Scene *
      
       g2_draw_rect_rounded(draw_at, region_size, 8, .color = v4f(0, 0, 0, node->color.a));
 
-      if (Last_Volume && Last_Volume->valid) {
+      if (Last_Volume && Last_Volume->valid && node->histogram.initialized) {
+#if 0
         if (!node->histogram.initialized) {
           F32 bucket_ranges[] = { 1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f };
           cfdr_histogram_init(&node->histogram, sarray_len(bucket_ranges), bucket_ranges);
         }
+#endif
 
         if (Last_Volume && Last_Volume->data_compressed) {
           R3F vol_bounds  = Last_Volume_Bounds;

@@ -191,7 +191,7 @@ fn_internal void cfdr_scene_draw_particles(CFDR_Render *render, CFDR_CMap_Table 
 
       particles->instance_dat[it].Color.xyz = v3f_mul(particles->instance_dat[it].Color.a, particles->instance_dat[it].Color.xyz);
 
-      V3F target = v3f_mul(largest_axis * 0.1f, particles->anim_dir_dat[it]);
+      V3F target = v3f_mul(largest_axis * 0.05f, particles->anim_dir_dat[it]);
       M4F translate = m4f_hom_translate(v3f_lerp(t, v3f(0, 0, 0), target));
       particles->instance_dat[it].Transform = m4f_mul(particles->instance_dat_original[it].Transform, translate);
     }
