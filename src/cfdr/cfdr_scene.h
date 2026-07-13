@@ -38,6 +38,8 @@ typedef struct CFDR_Object_Node {
 
   // TODO(cmat): Merge all three of these into just a material!
   HSVA                      color;
+  HSVA                      color_top;
+  I32                       color_by_height;
   CFDR_Material             material;
 
   V3F                       scale;
@@ -57,6 +59,8 @@ typedef struct CFDR_Object_Node {
   R_Buffer                  vol_state;
   R_Bind_Group              bind_group;
   R_Bind_Group              bind_group_vol;
+
+  I32                       ray_steps;
 } CFDR_Object_Node;
 
 typedef struct CFDR_Scene_View {

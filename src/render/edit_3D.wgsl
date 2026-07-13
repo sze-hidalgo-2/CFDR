@@ -7,6 +7,10 @@ struct World_3D_Type {
   @align(16) World                   : mat4x4<f32>,
   @align(16) Eye_Position            : vec3<f32>,
   @align(16) Color                   : vec4<f32>,
+  @align(16) Color_Top               : vec4<f32>,
+  @align(16) Color_By_Height         : i32,
+  @align(16) Min_Bounds              : vec3<f32>,
+  @align(16) Max_Bounds              : vec3<f32>,
 };
 
 struct Instance {
@@ -36,28 +40,31 @@ struct VS_Out {
     @location(0)        X      : vec3<f32>,
     @location(1)        U      : vec2<f32>,
     @location(2)        N      : vec3<f32>,
+    @location(3)        X_W    : vec3<f32>,
 };
 
 @vertex
 fn vs_main(@builtin(vertex_index) idx : u32, @builtin(instance_index) instance : u32) -> VS_Out {
-   let X = X_Buffer[idx];
-   let U = U_Buffer[idx];
-   let N = N_Buffer[idx];
-   let I = I_Buffer[instance];
+  let X = X_Buffer[idx];
+  let U = U_Buffer[idx];
+  let N = N_Buffer[idx];
+  let I = I_Buffer[instance];
 
-   var out : VS_Out;
-   out.X_Clip = transpose(World_3D.World_View_Projection) * X;
-   out.X      = (transpose(World_3D.World * I.Transform) * X).xyz;
-   out.N      = (transpose(World_3D.World_Inverse_Transpose) * vec4<f32>(N.xyz, 0.0)).xyz;
-   out.U      = U;
+  var out : VS_Out;
+  out.X_Clip = transpose(World_3D.World_View_Projection) * X;
+  out.X      = (transpose(World_3D.World * I.Transform) * X).xyz;
+  out.N      = (transpose(World_3D.World_Inverse_Transpose) * vec4<f32>(N.xyz, 0.0)).xyz;
+  out.U      = U;
+  out.X_W    = X.xyz;
 
-   return out;
+  return out;
 }
 
 @fragment
 fn fs_main(@location(0) X : vec3<f32>,
            @location(1) U : vec2<f32>,
-           @location(2) N_in : vec3<f32>) -> @location(0) vec4<f32> {
+           @location(2) N_in : vec3<f32>,
+           @location(3) X_W    : vec3<f32>) -> @location(0) vec4<f32> {
 
   let E                 = World_3D.Eye_Position;
   let N                 = normalize(N_in);
@@ -80,8 +87,16 @@ fn fs_main(@location(0) X : vec3<f32>,
   let lighting          = ambient + diffuse + specular;
 
   let color_texture     = textureSample(Texture, Sampler, U);
-  let pixel             = color_texture * World_3D.Color * vec4<f32>(lighting, 1.0);
 
+  var T = 0.0;
+  if (World_3D.Color_By_Height != 0) {
+    let t = (X_W.z - World_3D.Min_Bounds.z) / (World_3D.Max_Bounds.z - World_3D.Min_Bounds.z);
+    T = t;
+  }
+
+  var C = mix(World_3D.Color, World_3D.Color_Top, sqrt(T));
+  var pixel             = color_texture * C * vec4<f32>(lighting, 1.0);
+  
   return pixel;
 }
 

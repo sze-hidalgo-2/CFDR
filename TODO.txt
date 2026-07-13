@@ -1,6 +1,2 @@
-0. Linear interpolation
-1. Multi-Color colorbars.
-2. Virtual Scale + Shift.
-3. Boundary condition arrows from CSV.
-4. Multiple Components
-
+- Colormap autoscale
+- Histogram labels

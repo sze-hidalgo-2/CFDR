@@ -320,6 +320,7 @@ fn_internal void cfdr_ui_menu_bar(CFDR_UI_State *ui) {
 
         if (match_index != -1) {
           Swap(Str, project_names[match_index], project_names[0]);
+          Swap(Str, project_paths[match_index], project_paths[0]);
         }
 
         if (ui_list_fixed(str_lit("Project List"), &project_index, ui->project_count, project_names)) {
@@ -1022,6 +1023,11 @@ fn_internal void cfdr_ui_property_object(CFDR_UI_State *ui) {
       if (object->material != CFDR_Material_Sample) {
         ui_color_hsv  (str_lit("Color"),    &object->color.hsv);
         ui_f32_edit   (str_lit("Opacity"),  &object->color.a, 0.0f, 1.0f, 0.01f);
+        ui_checkbox   (str_lit("Color By Height"), &object->color_by_height);
+        if (object->color_by_height) {
+          ui_color_hsv  (str_lit("Color Top"), &object->color_top.hsv);
+          ui_f32_edit   (str_lit("Opacity Top"), &object->color_top.a, 0.0f, 1.0f, 0.01f);
+        }
       }
 
       UI_Parent_Scope(ui_container(str_lit("##scale"), UI_Container_None, Axis2_X, UI_Size_Fill, UI_Size_Fit)) {
@@ -1054,6 +1060,10 @@ fn_internal void cfdr_ui_property_object(CFDR_UI_State *ui) {
         ui_separator(str_lit("##separator_3"));
         ui_f32_edit(str_lit("Volume Density"), &object->volume_density, 0.f, 10.f, 0.005f);
         ui_f32_edit(str_lit("Volume Saturate"), &object->volume_saturate, 0.f, 10.f, 0.005f);
+
+        F32 ray_steps = (F32)object->ray_steps;
+        ui_f32_edit(str_lit("Volume Ray Steps"), &ray_steps, 1, 512, 0.5f);
+        object->ray_steps = (I32)ray_steps;
       }
     }
   }
@@ -1075,7 +1085,7 @@ fn_internal void cfdr_ui_property_overlay(CFDR_UI_State *ui) {
       ui_color_hsv(str_lit("Color"),  &overlay->color.hsv);
       ui_f32_edit(str_lit("Opacity"), &overlay->color.a, 0.0f, 1.0f, 0.01f);
 
-      ui_f32_edit(str_lit("Scale"), &overlay->scale, 25.0f, 200.0f, 1.f);
+      ui_f32_edit(str_lit("Scale"), &overlay->scale, 25.0f, 1000.0f, 1.f);
       
       ui_list(str_lit("Position X"), &overlay->position_x, sarray_len(x_align_list), x_align_list); 
       ui_list(str_lit("Position Y"), &overlay->position_y, sarray_len(y_align_list), y_align_list); 

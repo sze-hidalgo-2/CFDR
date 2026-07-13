@@ -46,6 +46,7 @@ fn_internal CFDR_Object_Node *cfdr_scene_push(CFDR_Scene *scene) {
   zero_fill(object);
   object->flags           = 0;
   object->color           = v4f(1.f, 0.f, 1.f, 1.f);
+  object->color_top       = v4f(1.f, 0.f, 1.f, 1.f);
   object->scale           = v3f(1, 1, 1);
   object->volume_density  = 1.f;
   object->volume_saturate = 2.5f;
@@ -53,6 +54,7 @@ fn_internal CFDR_Object_Node *cfdr_scene_push(CFDR_Scene *scene) {
   object->vol_state       = r_buffer_allocate(sizeof(R_Constant_Buffer_Vol_3D),   R_Buffer_Mode_Static);
   object->instance_buffer = r_buffer_allocate(sizeof(World_Instance),             R_Buffer_Mode_Static);
   object->volume_xyz      = 0;
+  object->ray_steps       = 64;
 
   return object;
 }
@@ -81,6 +83,7 @@ fn_internal M4F cfdr_object_node_transform(CFDR_Object_Node *object, R3F bounds)
 var_global CFDR_Resource_Volume *Last_Volume;
 var_global I32                   Last_Volume_XYZ;
 var_global M4F                   Last_Volume_Transform;
+var_global R3F                   Last_Volume_Bounds;
 
 fn_internal void cfdr_scene_draw_surface(CFDR_Render *render, CFDR_CMap_Table *cmap_table, Str cmap_key, CFDR_Object_Node *object, V3F eye_position, M4F view_projection, M4F scene_transform, R2F viewport) {
   if (object->flags & CFDR_Object_Flag_Draw_Surface) {
@@ -151,6 +154,10 @@ fn_internal void cfdr_scene_draw_surface(CFDR_Render *render, CFDR_CMap_Table *c
         .contour_visible         = contour_visible,
         .contour_value           = contour_value,
         .contour_thickness       = contour_thickness,
+        .color_by_height         = object->color_by_height,
+        .min_bounds              = object->surface.bounds.min,
+        .max_bounds              = object->surface.bounds.max,
+        .color_top               = object->color_top,
       };
 
       if (object->visible) {
@@ -181,6 +188,8 @@ fn_internal void cfdr_scene_draw_particles(CFDR_Render *render, CFDR_CMap_Table 
         F32 t2 = (t - 0.1f) / 0.9f;
         particles->instance_dat[it].Color.a = f32_smoothstep(t2, 1, 0);
       }
+
+      particles->instance_dat[it].Color.xyz = v3f_mul(particles->instance_dat[it].Color.a, particles->instance_dat[it].Color.xyz);
 
       V3F target = v3f_mul(largest_axis * 0.1f, particles->anim_dir_dat[it]);
       M4F translate = m4f_hom_translate(v3f_lerp(t, v3f(0, 0, 0), target));
@@ -218,18 +227,20 @@ fn_internal void cfdr_scene_draw_volume(CFDR_Render *render, CFDR_CMap_Table *cm
 
       CFDR_Render_Volume render_volume = {
         .resource                        = &object->volume.vol_array[vol_idx],
-        .transform                       = m4f_mul(cfdr_object_node_transform(object, r3f_v(object->translate, object->scale)), scene_transform),
+        .transform                       = m4f_mul(cfdr_object_node_transform(object, r3f_v(object->translate, v3f_add(object->translate, object->scale))), scene_transform),
         .volume_density                  = object->volume_density,
         .volume_saturate                 = object->volume_saturate,
         .volume_xyz                      = object->volume_xyz,
         .bind_group_vol                  = object->bind_group_vol,
         .vis_range                       = vis_range,
+        .ray_steps                       = object->ray_steps,
       };
 
       // TODO(cmat): Temporary.
       Last_Volume           = render_volume.resource;
       Last_Volume_XYZ       = object->volume_xyz;
       Last_Volume_Transform = render_volume.transform;
+      Last_Volume_Bounds    = r3f_v(object->translate, v3f_add(object->translate, object->scale));
 
       if (object->visible) { 
         cfdr_render_volume_draw(render, &render_volume, eye_position, view_projection, viewport);
@@ -241,7 +252,7 @@ fn_internal void cfdr_scene_draw_volume(CFDR_Render *render, CFDR_CMap_Table *cm
 fn_internal R3F cfdr_scene_object_bounds(CFDR_Object_Node *obj) {
   R3F result = { };
   if (obj->flags & CFDR_Object_Flag_Draw_Volume) {
-    result = r3f_v(obj->translate, obj->scale);
+    result = r3f_v(obj->translate, v3f_add(obj->translate, obj->scale));
   } else if (obj->flags * CFDR_Object_Flag_Draw_Surface) {
     if (obj->surface.valid) {
       result = obj->surface.bounds;
@@ -467,7 +478,6 @@ fn_internal void cfdr_scene_draw_picker_arrow(CFDR_Render_Arrow *arrow_xyz, CFDR
 
       F32 t       = geo3_intersect_ray_plane(ray_origin, ray_direction, plane);
       V3F move_at = v3f_add(ray_origin, v3f_mul(t, ray_direction));
-
 
       I32 ax = scene->picker_grabbed_axis;
       scene->active->translate = scene->picker_translate_base;

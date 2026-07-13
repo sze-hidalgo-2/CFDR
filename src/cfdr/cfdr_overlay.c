@@ -195,9 +195,22 @@ fn_internal void cfdr_overlay_draw_histogram(CFDR_Overlay *overlay, CFDR_Scene *
   if (node->flags & CFDR_Overlay_Flag_Histogram) {
     Scratch scratch = { };
     Scratch_Scope(&scratch, 0) {
+
+      // TODO(cmat): This is very much temporary. We want to refer to a global font cache.
+      F32 real_scale = js_web_device_pixel_ratio();
+      F32 font_scale = f32_floor(node->scale * 0.05f);
+      if (node->font_last_scale != font_scale) {
+        if (node->font.init) {
+          g2_font_destroy(&node->font);
+          arena_clear(&node->font_arena);
+        }
+
+        g2_font_init(&node->font, &node->font_arena, Overlay_Font_Baked, font_scale, v2_u16(2048, 2048), Codepoints_ASCII_Extended);
+        node->font_last_scale = font_scale;
+      }
     
       V2F draw_at     = v2f(0, 0);
-      V2F region_size = v2f_mul(js_web_device_pixel_ratio(), v2f(400, 250));
+      V2F region_size = v2f_mul(js_web_device_pixel_ratio(), v2f(node->scale, node->scale / 1.75f));
 
       switch (node->position_x) {
         case Align2_Left:    { draw_at.x = draw_region.min.x + node->border.x;                                                  } break;
@@ -211,16 +224,98 @@ fn_internal void cfdr_overlay_draw_histogram(CFDR_Overlay *overlay, CFDR_Scene *
         case Align2_Center:    { draw_at.y = draw_region.min.y + .5f * ((draw_region.max.y - draw_region.min.y) - region_size.y); } break;
       }
      
-      g2_draw_rect_rounded(draw_at, region_size, 8, .color = v4f(0, 0, 0, .4f));
+      g2_draw_rect_rounded(draw_at, region_size, 8, .color = v4f(0, 0, 0, node->color.a));
+
+      if (Last_Volume && Last_Volume->valid) {
+        if (!node->histogram.initialized) {
+          F32 bucket_ranges[] = { 1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f };
+          cfdr_histogram_init(&node->histogram, sarray_len(bucket_ranges), bucket_ranges);
+        }
+
+        if (Last_Volume && Last_Volume->data_compressed) {
+          R3F vol_bounds  = Last_Volume_Bounds;
+          // R3F stat_bounds = r3f_v(vol_bounds.min, v3f(vol_bounds.max.x, vol_bounds.max.y, vol_bounds.min.z + 50));
+          R3F stat_bounds = r3f_v(node->histogram_min_bounds, node->histogram_max_bounds);
+          cfdr_histogram_compute(&node->histogram, Last_Volume, Last_Volume_Bounds, stat_bounds);
+        }
+
+        if (!node->histogram.recompute) {
+          U32  bucket_len       = node->histogram.bucket_len;
+          F32  bucket_max       = node->histogram.bucket_percentages_max;
+          F32 *bucket_dat       = node->histogram.bucket_percentages;
+          F32 *bucket_range_dat = node->histogram.bucket_range;
+
+          F32  bucket_border_x = 5.f;
+          F32  bucket_border_y = node->font.font.metric_height + 5.f;
+          F32  bucket_gap_w    = 5.f;
+          F32  bucket_width    = (region_size.x - bucket_gap_w * (bucket_len - 1) - 2 * bucket_border_x) / bucket_len;
+          F32  bucket_height   = region_size.y - 2 * bucket_border_y - 0.5f * bucket_border_y;
+
+          V2F bucket_draw_at   = v2f(draw_at.x + bucket_border_x, draw_at.y + bucket_border_y);
+          V2F bucket_draw_size = v2f(bucket_width - bucket_gap_w, bucket_height);
+
+          HSVA Pastel_Colors[] = {
+            hsva_u32(20, 60, 80, 255),
+            hsva_u32(300, 60, 80, 255),
+            hsva_u32(60, 60, 80, 255),
+            hsva_u32(120, 60, 80, 255),
+            hsva_u32(270, 60, 80, 255),
+            hsva_u32(0, 60, 80, 255),
+            hsva_u32(80, 60, 80, 255),
+          };
+
+          // NOTE(cmat): Draw buckets.
+          For_U64 (it, bucket_len) {
+            V4F color = rgba_from_hsva(Pastel_Colors[it % sarray_len(Pastel_Colors)]);
+            g2_draw_rect_rounded(bucket_draw_at, v2f(bucket_width, bucket_height * (bucket_dat[it] / bucket_max)), 6, .color = color);
+            bucket_draw_at.x += bucket_width + bucket_gap_w;
+          }
+
+          g2_draw_rect(v2f(draw_at.x, draw_at.y + bucket_border_y - 5.f), v2f(region_size.x, 2.f), .color = v4f(0.6f, 0.6f, 0.6f, node->color.a));
+
+          // NOTE(cmat): Draw bucket ranges.
+          V2F label_draw_at = v2f(draw_at.x + bucket_border_x, draw_at.y - node->font.font.metric_descent);
+          For_U64 (it, bucket_len) {
+            char buffer[512] = { };
+            stbsp_snprintf(buffer, 512, "<%.2g", bucket_range_dat[it]);
+            Str label = str_from_cstr(buffer);
+
+            F32 width   = fo_text_width(&node->font.font, label);
+            V2F draw_at = v2f(label_draw_at.x + .5f * (bucket_width - width), label_draw_at.y);
+
+            g2_draw_text(label, &node->font, draw_at, .color = rgba_from_hsva(v4f(node->color.r, node->color.g, node->color.b, 1.f)));
+            label_draw_at.x += bucket_width + bucket_gap_w;
+          }
+
+          // NOTE(cmat): Draw bucket values.
+          V2F value_draw_at = v2f(draw_at.x + bucket_border_x, draw_at.y + bucket_border_y);
+          For_U64 (it, bucket_len) {
+            char buffer[512] = { };
+            stbsp_snprintf(buffer, 512, " %.1f%%", bucket_dat[it] * 100.f);
+            Str value = str_from_cstr(buffer);
+
+            F32 width   = fo_text_width(&node->font.font, value);
+
+            F32 height = value_draw_at.y + bucket_height * (bucket_dat[it] / bucket_max) - node->font.font.metric_descent + 5;
+            V2F draw_at = v2f(value_draw_at.x + .5f * (bucket_width - width), height);
+
+            g2_draw_text(value, &node->font, draw_at, .color = rgba_from_hsva(v4f(node->color.x, node->color.y, node->color.z, 1.f)));
+            value_draw_at.x += bucket_width + bucket_gap_w;
+          }
+
+          // NOTE(cmat): Draw title.
+          V2F title_at = v2f(draw_at.x, draw_at.y + region_size.y + 5.f - node->font.font.metric_descent);
+          // g2_draw_text(str_lit("Wind Distribution for 0 < z < 50"), v2f_add(title_at, node->shadow_offset), .color = node->shadow_color);
+          g2_draw_text(node->histogram_title, &node->font, v2f(title_at.x + node->shadow_offset, title_at.y - node->shadow_offset), .color = v4f(0, 0, 0, 0.8f));
+          g2_draw_text(node->histogram_title, &node->font, title_at, .color = v4f(1, 1, 1, 1));
+        }
+      }
     }
   }
 }
 
-
-
 fn_internal void cfdr_overlay_draw(CFDR_Overlay *overlay, CFDR_CMap_Table *cmap_table, CFDR_Scene *scene, R2F draw_region) {
   g2_clip_region(r2i_from_r2f(draw_region));
-
 
   F32 font_scale = overlay->font_scale * js_web_device_pixel_ratio();
   if (overlay->font_last_size != font_scale) {

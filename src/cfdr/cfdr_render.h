@@ -262,6 +262,10 @@ typedef struct CFDR_Render_Surface {
   B32                    contour_visible;
   F32                    contour_value;
   F32                    contour_thickness;
+  I32                    color_by_height;
+  V3F                    min_bounds;
+  V3F                    max_bounds;
+  V4F                    color_top;
 
   R_Buffer               state_buffer;
   R_Buffer               vol_buffer;
@@ -281,6 +285,9 @@ fn_internal void cfdr_render_surface_draw(CFDR_Render *render, CFDR_Render_Surfa
 
   V4F color = rgba_from_hsva(surface->color);
   color.rgb = v3f_mul_f32(color.rgb, color.a);
+
+  V4F color_top = rgba_from_hsva(surface->color_top);
+  color_top.rgb = v3f_mul_f32(color_top.rgb, color_top.a);
 
   if (surface->material == CFDR_Material_Sample) {
 
@@ -329,6 +336,10 @@ fn_internal void cfdr_render_surface_draw(CFDR_Render *render, CFDR_Render_Surfa
       .World                   = world,
       .Eye_Position            = eye_position,
       .Color                   = color,
+      .Color_By_Height         = surface->color_by_height,
+      .Min_Bounds              = surface->min_bounds,
+      .Max_Bounds              = surface->max_bounds,
+      .Color_Top               = color_top,
     };
 
     r_buffer_download(surface->state_buffer, 0, sizeof(world_data), &world_data);
@@ -362,6 +373,7 @@ typedef struct CFDR_Render_Volume {
   F32                    volume_saturate;
   I32                    volume_xyz;
   V2F                    vis_range;
+  I32                    ray_steps;
 } CFDR_Render_Volume;
 
 fn_internal void cfdr_render_volume_draw(CFDR_Render *render, CFDR_Render_Volume *volume, V3F eye_position, M4F view_projection, R2F viewport) {
@@ -386,6 +398,7 @@ fn_internal void cfdr_render_volume_draw(CFDR_Render *render, CFDR_Render_Volume
     .Visualize_Range         = volume->vis_range,
     .Volume_Saturate         = volume->volume_saturate,
     .Volume_XYZ              = volume->volume_xyz,
+    .Ray_Steps               = volume->ray_steps,
   };
 
   r_buffer_download(volume->resource->constant_buffer, 0, sizeof(vol_data), &vol_data);

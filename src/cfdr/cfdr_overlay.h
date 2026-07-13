@@ -28,6 +28,11 @@ typedef struct CFDR_Overlay_Node {
   Arena                     font_arena;
   B32                       font_last_scale;
   G2_Font                   font;
+
+  CFDR_Histogram            histogram;
+  Str                       histogram_title;
+  V3F                       histogram_min_bounds;
+  V3F                       histogram_max_bounds;
 } CFDR_Overlay_Node;
 
 typedef struct CFDR_Overlay {

@@ -1623,8 +1623,8 @@ typedef HSVA_F32 HSVA;
 #define rgb_u32(r_, g_, b_) (HSV) { (r_) / 255.f, (g_) / 255.f, (b_) / 255.f }
 #define hsv_u32(h_, s_, v_) (HSV) { (h_) / 360.f, (s_) / 100.f, (v_) / 100.f }
 
-#define rbga_u32(r_, g_, b_, a_) v4f((r_) / 255.f, (g_) / 255.f, (b_) / 255.f, (a_) / 255.f)
-#define hsva_u32(h_, s_, v_, a_) v4f((h_) / 360.f, (s_) / 100.f, (v_) / 100.f, (a_) / 255.f)
+#define rbga_u32(r_, g_, b_, a_) (HSVA) { (r_) / 255.f, (g_) / 255.f, (b_) / 255.f, (a_) / 255.f }
+#define hsva_u32(h_, s_, v_, a_) (HSVA) { (h_) / 360.f, (s_) / 100.f, (v_) / 100.f, (a_) / 255.f }
 
 fn_internal RGB       rgb_from_hsv       (HSV rgb);
 fn_internal HSV       hsv_from_rgb       (RGB hsv);

@@ -120,7 +120,6 @@ fn_internal void next_frame(B32 first_frame, PL_Render_Context *render_context) 
     }
   }
 
-
   cfdr_ui(&CFDR_UI);
   Resource_Downloading              = 0;
   Resource_Downloading_Bytes_Done   = 0;

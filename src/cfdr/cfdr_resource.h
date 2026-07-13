@@ -128,9 +128,16 @@ typedef struct CFDR_Resource_Volume {
   B32           valid;
   R_Texture_3D  volume;
   V2F           data_range;
-  // R_Texture_2D  color_map;
   R_Buffer      constant_buffer;
-  // R_Bind_Group  bind_group;
+
+  Arena         arena;
+  V3U           dimension;
+
+
+  U08          *data_compressed;
+  U64           data_compressed_size;
+  U64           data_decompressed_size;
+
 } CFDR_Resource_Volume;
 
 fn_internal void cfdr_resource_volume_init(CFDR_Resource_Volume *volume, Str path) {
@@ -145,7 +152,7 @@ fn_internal void cfdr_resource_volume_update(CFDR_Resource_Volume *volume) {
 
     Scratch scratch = { };
     Scratch_Scope(&scratch, 0) {
-      U08 *data_view = data.bytes_data;
+      U08 *data_view        = data.bytes_data;
 
       U32 magic_number      = *(U64 *)(data_view); data_view += sizeof(U32);
       U32 format_type       = *(U64 *)(data_view); data_view += sizeof(U32);
@@ -172,11 +179,134 @@ fn_internal void cfdr_resource_volume_update(CFDR_Resource_Volume *volume) {
       U08 *data = arena_push_size(scratch.arena, decompressed_size);
       LZ4_decompress_safe((char *)data_compressed, (char *)data, compressed_size, decompressed_size);
 
+      volume->dimension              = v3u(X, Y, Z);
+      volume->data_compressed        = data_compressed;
+      volume->data_compressed_size   = compressed_size;
+      volume->data_decompressed_size = decompressed_size;
+
       volume->volume = r_texture_3D_allocate(R_Texture_Format_R_U08_Normalized, X, Y, Z);
+      
       r_texture_3D_download(volume->volume, R_Texture_Format_R_U08_Normalized, r3i(0, 0, 0, X, Y, Z), data);
     }
  
     volume->constant_buffer = r_buffer_allocate(sizeof(R_Constant_Buffer_Vol_3D), R_Buffer_Mode_Dynamic);
+  }
+}
+
+typedef struct CFDR_Histogram {
+  Arena arena;
+
+  U32   bucket_len;
+  F32  *bucket_range;
+
+  U64  *bucket_counts;
+  F32  *bucket_percentages;
+  U64   bucket_counts_max;
+  U64   bucket_counts_total;
+  F32   bucket_percentages_max;
+
+  B32   initialized;
+  B32   recompute;
+
+  void *last_data;
+} CFDR_Histogram;
+
+fn_internal void cfdr_histogram_init(CFDR_Histogram *hist, U32 bucket_len, F32 *bucket_range) {
+  zero_fill(hist);
+  arena_init(&hist->arena);
+
+  hist->bucket_len          = bucket_len;
+  hist->bucket_range        = arena_push_count(&hist->arena, F32, bucket_len);
+  hist->bucket_counts       = arena_push_count(&hist->arena, U64, bucket_len);
+  hist->bucket_percentages  = arena_push_count(&hist->arena, F32, bucket_len);
+  hist->initialized         = 1;
+  hist->recompute           = 1;
+
+  memory_copy(hist->bucket_range, bucket_range, bucket_len * sizeof(F32));
+}
+
+fn_internal void cfdr_histogram_compute(CFDR_Histogram *hist, CFDR_Resource_Volume *volume, R3F volume_bounds, R3F hist_bounds) {
+  if (volume->data_compressed) {
+    if (hist->last_data != volume->data_compressed) {
+      hist->recompute = 1;
+      hist->last_data = volume->data_compressed;
+    }
+
+    if (hist->recompute) {
+      log_zone_start("Computing histogram...");
+
+      hist->recompute = 0;
+      hist->last_data = volume->data_compressed;
+
+      // NOTE(cmat): Deflate volume data first.
+      Scratch scratch = { };
+      Scratch_Scope(&scratch, 0) {
+
+        log_info("Decompressing data...");
+        U08 *data = arena_push_size(scratch.arena, volume->data_decompressed_size);
+        LZ4_decompress_safe((char *)volume->data_compressed, (char *)data, volume->data_compressed_size, volume->data_decompressed_size);
+
+        log_info("Computing histogram...");
+        V3F dim_f       = v3f(volume->dimension.x, volume->dimension.y, volume->dimension.z);
+        V3F bounds_rcp  = v3f_rcp(r3f_size(volume_bounds));
+        V3F min_index_f = v3f_had(v3f_had(v3f_sub(hist_bounds.min, volume_bounds.min), bounds_rcp), dim_f);
+        V3F max_index_f = v3f_had(v3f_had(v3f_sub(hist_bounds.max, volume_bounds.min), bounds_rcp), dim_f);
+
+        V3U min_index   = v3u(f32_floor(min_index_f.x + .5f), f32_floor(min_index_f.y + .5f), f32_floor(min_index_f.z + .5f));
+        V3U max_index   = v3u(f32_floor(max_index_f.x + .5f), f32_floor(max_index_f.y + .5f), f32_floor(max_index_f.z + .5f));
+
+        min_index.x     = u32_clamp(min_index.x, 0, volume->dimension.x);
+        min_index.y     = u32_clamp(min_index.y, 0, volume->dimension.y);
+        min_index.z     = u32_clamp(min_index.z, 0, volume->dimension.z);
+
+        max_index.x     = u32_clamp(max_index.x, 0, volume->dimension.x);
+        max_index.y     = u32_clamp(max_index.y, 0, volume->dimension.y);
+        max_index.z     = u32_clamp(max_index.z, 0, volume->dimension.z);
+
+        For_U64 (it, hist->bucket_len) {
+          hist->bucket_counts[it] = 0;
+        }
+
+        hist->bucket_counts_total = 0;
+
+        for (U32 z = min_index.z; z < max_index.z; ++z) {
+          for (U32 y = min_index.y; y < max_index.y; y++) {
+            for (U32 x = min_index.x; x < max_index.x; x++) {
+              U64 index           = x + y * volume->dimension.x + z * volume->dimension.x * volume->dimension.y;
+              U08 value_quantized = data[index];
+              F32 value           = volume->data_range.x + (((F32)value_quantized) / 255.f * (volume->data_range.y - volume->data_range.x));
+
+              if (value_quantized != 0) {
+                B32 found = 0;
+                For_U64 (range_it, hist->bucket_len) {
+                  if (value < hist->bucket_range[range_it]) {
+                    hist->bucket_counts[range_it] += 1;
+                    found = 1;
+                    break;
+                  }
+                }
+
+                if (!found) { hist->bucket_counts[hist->bucket_len - 1] += 1; }
+                hist->bucket_counts_total += 1;
+              }
+            }
+          }
+        }
+
+        hist->bucket_counts_max = 0;
+        For_U32 (it, hist->bucket_len) {
+          hist->bucket_counts_max = u64_max(hist->bucket_counts_max, hist->bucket_counts[it]);
+        }
+
+        hist->bucket_percentages_max = 0;
+        For_U32 (it, hist->bucket_len) {
+          hist->bucket_percentages[it] = (F32)((F64)hist->bucket_counts[it] / (F64)hist->bucket_counts_total);
+          hist->bucket_percentages_max = f32_max(hist->bucket_percentages_max, hist->bucket_percentages[it]);
+        }
+
+        log_zone_end();
+      }
+    }
   }
 }
 
@@ -228,7 +358,6 @@ fn_internal void cfdr_resource_table_update(CFDR_Resource_Table *table) {
 
       zero_fill(&scan);
       scan_init(&scan, scratch.arena, str(data.bytes_total, data.bytes_data));
-
 
       // NOTE(cmat): Skip first line.
       scan_skip_whitespace(&scan);

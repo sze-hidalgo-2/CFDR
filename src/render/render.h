@@ -289,6 +289,10 @@ typedef struct {
   alignas(16) M4F World;
   alignas(16) V3F Eye_Position;
   alignas(16) V4F Color;
+  alignas(16) V4F Color_Top;
+  alignas(16) I32 Color_By_Height;
+  alignas(16) V3F Min_Bounds;
+  alignas(16) V3F Max_Bounds;
 } R_Constant_Buffer_World_3D;
 
 typedef struct {
@@ -307,5 +311,6 @@ typedef struct {
   alignas(16) I32 Contour_Visible;
   alignas(16) F32 Contour_Value;
   alignas(16) F32 Contour_Thickness;
+  alignas(16) I32 Ray_Steps;
 } R_Constant_Buffer_Vol_3D;
 

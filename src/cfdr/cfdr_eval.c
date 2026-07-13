@@ -520,19 +520,23 @@ fn_internal void cfdr_eval_directive_overlay(CFDR_State *state, Arena *arena, TK
       CFDR_Overlay_Node *ov = cfdr_overlay_push(&state->overlay);
       ov->tag = key;
       for (CFDR_Table_Node *it = table.table->first; it; it = it->next) {
-             if (str_equals(it->label, str_lit("visible")))       { ov->visible           = cfdr_eval_get_bool    (it->value);                       }
-        else if (str_equals(it->label, str_lit("content")))       { ov->content           = cfdr_eval_get_str     (it->value);                       }
-        else if (str_equals(it->label, str_lit("scale")))         { ov->scale             = cfdr_eval_get_i32     (it->value);                       }
-        else if (str_equals(it->label, str_lit("color")))         { ov->color.hsv         = cfdr_eval_get_color   (it->value);                       }
-        else if (str_equals(it->label, str_lit("opacity")))       { ov->color.a           = cfdr_eval_get_i32     (it->value) / 100.f;               }
-        else if (str_equals(it->label, str_lit("shadow_color")))  { ov->color_shadow.hsv  = cfdr_eval_get_color   (it->value);                       }
-        else if (str_equals(it->label, str_lit("position_x")))    { ov->position_x        = cfdr_eval_get_align2  (it->value);                       }
-        else if (str_equals(it->label, str_lit("position_y")))    { ov->position_y        = cfdr_eval_get_align2  (it->value);                       }
-        else if (str_equals(it->label, str_lit("border")))        { ov->border            = cfdr_eval_get_v2f     (it->value);                       }
-        else if (str_equals(it->label, str_lit("shadow_offset"))) { ov->shadow_offset     = cfdr_eval_get_i32     (it->value);                       }
+        if (str_equals(it->label, str_lit("visible")))              { ov->visible           = cfdr_eval_get_bool    (it->value);                       }
+        else if (str_equals(it->label, str_lit("content")))         { ov->content           = cfdr_eval_get_str     (it->value);                       }
+        else if (str_equals(it->label, str_lit("histogram_title"))) { ov->histogram_title   = cfdr_eval_get_str     (it->value);                       }
+        else if (str_equals(it->label, str_lit("scale")))           { ov->scale             = cfdr_eval_get_i32     (it->value);                       }
+        else if (str_equals(it->label, str_lit("color")))           { ov->color.hsv         = cfdr_eval_get_color   (it->value);                       }
+        else if (str_equals(it->label, str_lit("opacity")))         { ov->color.a           = cfdr_eval_get_i32     (it->value) / 100.f;               }
+        else if (str_equals(it->label, str_lit("shadow_color")))    { ov->color_shadow.hsv  = cfdr_eval_get_color   (it->value);                       }
+        else if (str_equals(it->label, str_lit("position_x")))      { ov->position_x        = cfdr_eval_get_align2  (it->value);                       }
+        else if (str_equals(it->label, str_lit("position_y")))      { ov->position_y        = cfdr_eval_get_align2  (it->value);                       }
+        else if (str_equals(it->label, str_lit("border")))          { ov->border            = cfdr_eval_get_v2f     (it->value);                       }
+        else if (str_equals(it->label, str_lit("shadow_offset")))   { ov->shadow_offset     = cfdr_eval_get_i32     (it->value);                       }
 
         else if (str_equals(it->label, str_lit("background")))    { if  (cfdr_eval_get_bool(it->value)) { ov->flags |= CFDR_Overlay_Flag_Background; }  }
         else if (str_equals(it->label, str_lit("shadow")))        { if  (cfdr_eval_get_bool(it->value)) { ov->flags |= CFDR_Overlay_Flag_Shadow;     }  }
+
+        else if (str_equals(it->label, str_lit("histogram_min_bounds"))) { ov->histogram_min_bounds = cfdr_eval_get_v3f(it->value);                    }
+        else if (str_equals(it->label, str_lit("histogram_max_bounds"))) { ov->histogram_max_bounds = cfdr_eval_get_v3f(it->value);                    }
 
         else if (str_equals(it->label, str_lit("table"))) {
           cfdr_resource_table_init(&ov->table, cfdr_eval_get_str(it->value));
@@ -569,6 +573,9 @@ fn_internal void cfdr_eval_directive_object(CFDR_State *state, Arena *arena, TK_
         else if (str_equals(it->label, str_lit("volume_density")))      { obj->volume_density    = cfdr_eval_get_f32     (it->value) / 100.f;               }
         else if (str_equals(it->label, str_lit("volume_saturation")))   { obj->volume_saturate   = cfdr_eval_get_f32     (it->value) / 100.f;               }
         else if (str_equals(it->label, str_lit("volume_xyz")))          { obj->volume_xyz        = cfdr_eval_get_i32     (it->value);                       }
+        else if (str_equals(it->label, str_lit("color_by_height")))     { obj->color_by_height   = (I32)!!cfdr_eval_get_bool    (it->value);                }
+        else if (str_equals(it->label, str_lit("color_top")))           { obj->color_top.hsv     = cfdr_eval_get_color   (it->value);                       }
+        else if (str_equals(it->label, str_lit("opacity_top")))         { obj->color_top.a       = cfdr_eval_get_f32     (it->value) / 100.f;               }
         else if (str_equals(it->label, str_lit("material"))) {
           // obj->translate         = cfdr_eval_get_v3f     (it->value);
           Str material = cfdr_eval_get_str(it->value);

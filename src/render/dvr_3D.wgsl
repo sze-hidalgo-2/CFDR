@@ -13,7 +13,8 @@ struct Volume_3D_Type {
   @align(16) Contour_Color           : vec3<f32>,
   @align(16) Contour_Visible         : i32,
   @align(16) Contour_Value           : f32,
-  @align(16) Contour_Thickness       : f32
+  @align(16) Contour_Thickness       : f32,
+  @align(16) Ray_Steps               : i32,
 };
 
 @group(0) @binding(0) var<storage, read> X_Buffer : array<vec4<f32>>;
@@ -47,8 +48,7 @@ fn vs_main(@builtin(vertex_index) idx : u32) -> VS_Out {
   return out;
 }
 
-const ray_steps     = 64; // 512;
-const ray_step_size = sqrt(sqrt(2) + 1) / ray_steps;
+// const ray_steps     = 64; // 512;
 
 fn intersect_ray_box(ray_origin : vec3<f32>, ray_direction : vec3<f32>) -> vec2<f32> {
   let inv_direction = 1.f / ray_direction;
@@ -66,7 +66,7 @@ fn intersect_ray_box(ray_origin : vec3<f32>, ray_direction : vec3<f32>) -> vec2<
 }
 
 
-fn transfer_function(value : f32) -> vec4<f32> {
+fn transfer_function(value : f32, ray_step_size : f32) -> vec4<f32> {
   let color = textureSampleLevel(Texture, Sampler, vec2<f32>(value, 0), 0.0);
   let alpha = 1.0 - exp(-value * ray_step_size);
   return vec4<f32>(color.rgb, alpha * color.a);
@@ -74,6 +74,8 @@ fn transfer_function(value : f32) -> vec4<f32> {
 
 @fragment
 fn fs_main(@location(0) X : vec3<f32>) -> @location(0) vec4<f32> {
+
+  let ray_step_size = sqrt(sqrt(2) + 1) / f32(Vol_3D.Ray_Steps);
 
   let world_min                         = Vol_3D.Volume_Min;
   let world_max                         = Vol_3D.Volume_Max;
@@ -94,7 +96,7 @@ fn fs_main(@location(0) X : vec3<f32>) -> @location(0) vec4<f32> {
   var accum_color = vec4<f32>(0.0);
   var ray_t       = max(t_enter, 0.0);
 
-  for (var it = 0; it < ray_steps; it++) {
+  for (var it = 0; it < Vol_3D.Ray_Steps; it++) {
   
     // NOTE(cmat): If dynamic loops supported.
     // if ((ray_t > t_exit) || accum_color.a >  = 1.0) { break; }
@@ -122,7 +124,7 @@ fn fs_main(@location(0) X : vec3<f32>) -> @location(0) vec4<f32> {
     let sample_remap                            = (sample_clamp - vis_min) / (vis_max - vis_min);
 
 
-    let color                                   = Vol_3D.Volume_Saturate * transfer_function(sample_remap);
+    let color                                   = Vol_3D.Volume_Saturate * transfer_function(sample_remap, ray_step_size);
     accum_color                                += mask * (1.0 - accum_color.a) * vec4<f32>(color.rgb * color.a, color.a);
     ray_t                                      += ray_step_size;
   }
